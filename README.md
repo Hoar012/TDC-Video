@@ -1,6 +1,6 @@
 ## MM-Video: Multimodal Long Video Modeling
 
-| <div align="center"> <img src="./images/teaser.png" alt="MM-Video" width="600"></div> |
+| <img src="./images/teaser.png" alt="MM-Video" width="600"> |
 |:--:|
 ## Framework of Temporal Dynamic Context Compression
 
