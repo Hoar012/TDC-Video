@@ -10,10 +10,6 @@
 | <img src="./images/teaser.png" alt="MM-Video" width="600"> |
 |:--:| -->
 
-## Framework of Temporal Dynamic Context Compression
-| ![TDC](./images/framework.png) |
-|:--:|
-| Architecture of Our Multimodal Video Encoder. We first extract features for each second of the video, including both visual and corresponding audio tokens. The first frame is selected as the static frame, and a Q-Former is used to perform Temporal Dynamic Context compression based on its relationship with subsequent frames, resulting in K compressed tokens per frame. The final video representation consists of all static frame tokens and multimodal video context. |
 
 ## Contents
 
@@ -25,6 +21,11 @@
 - [Evaluation](#evaluation) -->
 
 Note: This repository is still under construction.
+
+## Framework of Temporal Dynamic Context Compression
+| ![TDC](./images/framework.png) |
+|:--:|
+| Architecture of Our Multimodal Video Encoder. We first extract features for each second of the video, including both visual and corresponding audio tokens. The first frame is selected as the static frame, and a Q-Former is used to perform Temporal Dynamic Context compression based on its relationship with subsequent frames, resulting in K compressed tokens per frame. The final video representation consists of all static frame tokens and multimodal video context. |
 
 ### Install
 
