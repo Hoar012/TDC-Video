@@ -56,3 +56,8 @@ pip install -r requirements.txt
         url={https://arxiv.org/abs/2504.10443}, 
   }
 ```
+
+
+## Acknowledgement
+
+This repository is built upon: [LLaVA](https://github.com/haotian-liu/LLaVA), [LongVU](https://github.com/Vision-CAIR/LongVU) and [StoryTeller](https://github.com/hyc2026/storyteller).
