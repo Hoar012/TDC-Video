@@ -20,7 +20,7 @@
 - [Training](#Training)
 - [Evaluation](#evaluation) -->
 
-Note: This repository is still under construction.
+Note: 🚧 This repository is under construction 🚧 -- Please check back for updates!
 
 ## Framework of Temporal Dynamic Context Compression
 | ![TDC](./images/framework.png) |
