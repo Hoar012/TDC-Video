@@ -301,7 +301,4 @@ if __name__ == "__main__":
     parser.add_argument('--data_path', required=True)
     args = parser.parse_args()
 
-    if "llama3" in args.version:
-        args.model_name = "cambrian_llama3"
-
     train(args)

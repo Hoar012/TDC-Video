@@ -243,13 +243,7 @@ def train(args) -> None:
             
         except Exception as e:
             print(e)
-            
-        print(qs)
-        print(pred)
         
-        if len(output) >= 500:
-            break
-
     dist.barrier()
     dist.all_gather_object(
         final_output,
@@ -281,9 +275,6 @@ if __name__ == "__main__":
     parser.add_argument('--data_path', required=True)
     parser.add_argument('--test_file', required=True)
     args = parser.parse_args()
-
-    # if "llama3" in args.version:
-    #     args.model_name = "cambrian_llama3"
         
     args.local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(args.local_rank)
