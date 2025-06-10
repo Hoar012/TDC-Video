@@ -461,7 +461,8 @@ class CambrianMetaModel:
         second_per_window=0.333333,
         second_stride=0.333333,
     )
-        self.audio_proj = nn.Linear(768, self.config.hidden_size)
+        if not hasattr(self, "audio_proj"):
+            self.audio_proj = nn.Linear(768, self.config.hidden_size)
         return self.audio_encoder
         
     def initialize_compressor(self, config, pretrained_qformer = None, context_token_num = 16):
