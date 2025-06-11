@@ -11,7 +11,7 @@
 |:--:| -->
 
 
-## Contents
+## 📋 Contents
 
 - [Install](#install)
 <!-- - [Models](#models)

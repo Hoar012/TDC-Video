@@ -1,1 +1,0 @@
-torchrun --nproc_per_node=4 ./eval/eval_musicQA.py --model_path "./" --model_name cambrian_llama --version llama3 --data_path data/AV_data/Music-AVQA --test_file data/AV_data/Music-AVQA/avqa_test-2-27.json
