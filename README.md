@@ -44,6 +44,19 @@ conda activate tdc
 pip install -r requirements.txt
 ```
 
+### Training
+
+1. Prepare training data.
+
++ Stage 1: Image-Text Alignment: [LLaVA-OneVision-Single](https://huggingface.co/datasets/lmms-lab/LLaVA-OneVision-Data)
++ Stage 2: Video Instruction Tuning: [Stage2 data](https://huggingface.co/datasets/Hoar012/TDC_training_data/tree/main/stage2_data)
++ Stage 3: Audio-Video Instruction Tuning: [Stage3 data](https://huggingface.co/datasets/Hoar012/TDC_training_data/tree/main/stage3_data)
+
+We also provide the processed videos and audios for stage 3 training: [Processed data](https://huggingface.co/datasets/Hoar012/TDC_training_data).
+
+
+
+
 ## BibTeX
 ```
 @misc{hao2025multimodallongvideomodeling,
