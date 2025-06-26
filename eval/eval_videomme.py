@@ -397,7 +397,7 @@ if __name__ == "__main__":
     parser.add_argument('--data_path', required=True)
     args = parser.parse_args()
 
-    if "llama3" in args.version:
-        args.model_name = "cambrian_llama3"
+    args.local_rank = int(os.environ["LOCAL_RANK"])
+    torch.cuda.set_device(args.local_rank)
 
     train(args)
