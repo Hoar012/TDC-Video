@@ -14,10 +14,10 @@
 ## 📋 Contents
 
 - [Install](#install)
+- [Training](#Training)
 <!-- - [Models](#models)
 - [Demo](#demo)
 - [Data](#data)
-- [Training](#Training)
 - [Evaluation](#evaluation) -->
 
 Note: 🚧 This repository is under construction 🚧 -- Please check back for updates!
@@ -54,7 +54,30 @@ pip install -r requirements.txt
 
 We also provide the processed videos and audios for stage 3 training: [Processed data](https://huggingface.co/datasets/Hoar012/TDC_training_data).
 
+2. training scripts
 
+Modify the PATH_TO_JSON and PATH_TO_FOLDER arguments in the training scripts to your save folder.
+
+```
+PATH_TO_JSON=""
+PATH_TO_FOLDER=""
+```
+Training your own model
+```
+# image sft
+sh scripts/train_image_qwen.sh
+sh scripts/train_image_llama3_2.sh
+```
+
+Modify PREV_STAGE_CHECKPOINT in the training scripts to your first stage model path
+
+Change `image_token_len` and `query_num_list` in `config.json` to 144
+
+```
+# video sft
+sh scripts/train_video_qwen.sh
+sh scripts/train_video_llama3_2.sh
+```
 
 
 ## BibTeX
