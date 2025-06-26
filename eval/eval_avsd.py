@@ -59,12 +59,12 @@ class EvalDataset(torch.utils.data.IterableDataset):
         self.data = json.load(open(data_path, "r"))
 
         datalist = []
+        # "3MSZA": {"socketId": "CR7LQccFQxk0uyMAAAIK0LVuPAuHV5xGPvTVAAIJ", "summary": "A young woman with long brown hair is standing inside a house next to the front door. She's discussing whether or not to go to an event with another person. She's holding some food in her hands.\n", "data": [{"answer": "The person visable in the video is a woman, but It sounds as though there is a man having a conversation with her.", "question": "Is the person a man?", "id": "1"}, {"answer": "Yes her hair is past her shoulders and appears to be light brown.", "question": "Does she have long hair?", "id": "2"}, {"answer": "It is a container of snacks that might be potato chips.", "question": "What is she holding?", "id": "3"}, {"answer": "There are a few things including a lamp and a pumpkin", "question": "What's on the table next to her?", "id": "4"}, {"answer": "She is inside, but I can see some white that is probably snow through the door.", "question": "Is there snow on the ground?", "id": "5"}, {"answer": "No I don't see any animals", "question": "Can you see any animals?", "id": "6"}, {"answer": "She is wearing a sweatshirt", "question": "Is she wearing a jacket?", "id": "7"}, {"answer": "They are discussing whether one or both of them will attend an event.", "question": "Can you tell what they're saying?", "id": "8"}, {"answer": "I would guess late twenties.", "question": "How old would you say she is?", "id": "9"}, {"answer": "No, they are quite serious.", "question": "Do either of them laugh?", "id": "10"}], "split": "val", "script": "A person is eating in the doorway.  The person then is playing with the switch for the light."}
         for data_id in self.data:
-            data = self.data[data_id]["data"]
-            for line in data:
-                line["video_id"] = data_id
-                datalist.append(line)
-                # {"answer": "The person visable in the video is a woman, but It sounds as though there is a man having a conversation with her.", "question": "Is the person a man?", "id": "1"}
+            data = self.data[data_id]
+            data["video_id"] = data_id
+            datalist.append(data)
+            
         self.data = datalist
 
     def __len__(self) -> int:
@@ -115,14 +115,10 @@ def train(args) -> None:
     output = []
     final_output = [None] * world_size
 
-    for line in tqdm(shard_dataset):
+    for data in tqdm(shard_dataset):
         try:
-            video_name = line["video_id"] + ".mp4"
-            audio_name = line["video_id"] + ".wav"
-            
-            question = line["question"]
-            qs = question
-            ans = line["answer"]
+            video_name = data["video_id"] + ".mp4"
+            audio_name = data["video_id"] + ".wav"
 
             video_path = os.path.join(
                 args.data_path,
@@ -161,75 +157,85 @@ def train(args) -> None:
                             'end_time': None}
                         ]
                 }
+
             audio = audio_processor(audio_data)
             
-            if getattr(model.config, "mm_use_im_start_end", False):
-                qs = (
-                    DEFAULT_IM_START_TOKEN
-                    + DEFAULT_IMAGE_TOKEN
-                    + DEFAULT_IM_END_TOKEN
-                    + "\n"
-                    + qs
-                )
-            else:
-                qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
-
             conv = conv_templates[version].copy()
             conv.tokenizer = tokenizer
-            conv.append_message(conv.roles[0], qs)
-            conv.append_message(conv.roles[1], None)
-            prompt = conv.get_prompt()
-
-            input_ids = (
-                tokenizer_image_token(
-                    prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
-                )
-                .unsqueeze(0)
-                .cuda()
-            )
-
-            if "llama3" in version:
-                input_ids = input_ids[0][1:].unsqueeze(0)  # remove bos
-
-            stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
-            keywords = [stop_str]
-            stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
-                
-            with torch.inference_mode():
-                output_ids = model.generate(
-                    input_ids,
-                    images=video,
-                    image_sizes=image_sizes,
-                    do_sample=False,
-                    temperature=0.0,
-                    max_new_tokens=64,
-                    use_cache=True,
-                    stopping_criteria=[stopping_criteria],
-                    prompt=qs.replace("<image>\n", ""),
-                    audio=audio
-                )
-            if isinstance(output_ids, tuple):
-                output_ids = output_ids[0]
-            pred = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[
-                0
-            ].strip()
+            pred = None
             
-            if pred.endswith(stop_str):
-                pred = pred[: -len(stop_str)]
-                pred = pred.strip()
-            pred = pred.replace("Answer", "")
-            print(qs, "pred:", pred)
-            ans_id = uuid.uuid4()
-            output.append(
-                {
-                    "prompt": qs,
-                    "pred": pred,
-                    "correct_answer": ans,
-                    "answer_id": str(ans_id),
-                    "model_id": model_name,
-                    "video_name": video_name
-                }
-            )
+            for idx, line in enumerate(data["data"]):
+                qs = line["question"]
+                ans = line["answer"]
+                if idx == 0:
+                    if getattr(model.config, "mm_use_im_start_end", False):
+                        qs = (
+                            DEFAULT_IM_START_TOKEN
+                            + DEFAULT_IMAGE_TOKEN
+                            + DEFAULT_IM_END_TOKEN
+                            + "\n"
+                            + qs
+                        )
+                    else:
+                        qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
+                
+                conv.append_message(conv.roles[0], qs)
+                conv.append_message(conv.roles[1], None)
+            
+                prompt = conv.get_prompt()
+
+                input_ids = (
+                    tokenizer_image_token(
+                        prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
+                    )
+                    .unsqueeze(0)
+                    .cuda()
+                )
+
+                if "llama3" in version:
+                    input_ids = input_ids[0][1:].unsqueeze(0)  # remove bos
+
+                stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+                keywords = [stop_str]
+                stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
+                    
+                with torch.inference_mode():
+                    output_ids = model.generate(
+                        input_ids,
+                        images=video,
+                        image_sizes=image_sizes,
+                        do_sample=False,
+                        temperature=0.0,
+                        max_new_tokens=64,
+                        use_cache=True,
+                        stopping_criteria=[stopping_criteria],
+                        prompt=qs.replace("<image>\n", ""),
+                        audio=audio
+                    )
+                if isinstance(output_ids, tuple):
+                    output_ids = output_ids[0]
+                pred = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[
+                    0
+                ].strip()
+                
+                if pred.endswith(stop_str):
+                    pred = pred[: -len(stop_str)]
+                    pred = pred.strip()
+                pred = pred.replace("Answer", "")
+                print(qs, "pred:", pred)
+                conv.messages[-1][-1] = pred
+                ans_id = uuid.uuid4()
+                output.append(
+                    {
+                        "question": qs,
+                        "prompt": prompt,
+                        "pred": pred,
+                        "correct_answer": ans,
+                        "answer_id": str(ans_id),
+                        "model_id": model_name,
+                        "video_name": video_name
+                    }
+                )
             
         except Exception as e:
             print(e)
