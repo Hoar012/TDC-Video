@@ -908,21 +908,20 @@ def train() -> None:
 
     # pyre-fixme[16]: `DataClass` has no attribute `vision_tower`.
     if model_args.vision_tower_aux_list is not None:
-        if "cambrian" in model_args.input_model_filename.lower():
-            if "qwen" in model_args.input_model_filename.lower():
-                model = CambrianQwenForCausalLM.from_pretrained(  # pyre-fixme
-                    model_args.input_model_filename,  # pyre-fixme
-                    torch_dtype=(torch.bfloat16 if training_args.bf16 else None),  # pyre-fixme
-                    **bnb_model_from_pretrained_args,
-                )
-            else:
-                # pyre-fixme[16]: `CambrianLlamaForCausalLM` has no attribute
-                #  `from_pretrained`.
-                model = CambrianLlamaForCausalLM.from_pretrained(
-                    # pyre-fixme[16]: `DataClass` has no attribute `input_model_local_path`.
-                    model_args.input_model_filename,
-                    **bnb_model_from_pretrained_args,
-                )
+        if "qwen" in model_args.input_model_filename.lower():
+            model = CambrianQwenForCausalLM.from_pretrained(  # pyre-fixme
+                model_args.input_model_filename,  # pyre-fixme
+                torch_dtype=(torch.bfloat16 if training_args.bf16 else None),  # pyre-fixme
+                **bnb_model_from_pretrained_args,
+            )
+        elif "llama" in model_args.input_model_filename.lower():
+            # pyre-fixme[16]: `CambrianLlamaForCausalLM` has no attribute
+            #  `from_pretrained`.
+            model = CambrianLlamaForCausalLM.from_pretrained(
+                # pyre-fixme[16]: `DataClass` has no attribute `input_model_local_path`.
+                model_args.input_model_filename,
+                **bnb_model_from_pretrained_args,
+            )
         else:
             raise NotImplementedError(
                 f"{model_args.model_name_or_path} is not supported yet"
