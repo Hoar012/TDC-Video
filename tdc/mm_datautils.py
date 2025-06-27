@@ -1393,321 +1393,321 @@ def preprocess(
     return dict(input_ids=input_ids, labels=targets)
 
 
-class LazySupervisedDataset(Dataset):
-    """Dataset for supervised fine-tuning."""
+# class LazySupervisedDataset(Dataset):
+#     """Dataset for supervised fine-tuning."""
 
-    def __init__(
-        self,
-        data_path: str,
-        tokenizer: transformers.PreTrainedTokenizer,
-        # pyre-fixme[2]: Parameter must be annotated.
-        data_args,
-    ) -> None:
-        super(LazySupervisedDataset, self).__init__()
-        list_data_dict = json.load(open(data_path, "r"))
+#     def __init__(
+#         self,
+#         data_path: str,
+#         tokenizer: transformers.PreTrainedTokenizer,
+#         # pyre-fixme[2]: Parameter must be annotated.
+#         data_args,
+#     ) -> None:
+#         super(LazySupervisedDataset, self).__init__()
+#         list_data_dict = json.load(open(data_path, "r"))
 
-        self.tokenizer = tokenizer
-        # pyre-fixme[4]: Attribute must be annotated.
-        self.list_data_dict = list_data_dict
-        # pyre-fixme[4]: Attribute must be annotated.
-        self.data_args = data_args
+#         self.tokenizer = tokenizer
+#         # pyre-fixme[4]: Attribute must be annotated.
+#         self.list_data_dict = list_data_dict
+#         # pyre-fixme[4]: Attribute must be annotated.
+#         self.data_args = data_args
 
-    @property
-    # pyre-fixme[3]: Return type must be annotated.
-    def lengths(self):
-        length_list = []
-        for sample in self.list_data_dict:
-            img_tokens = 128 if "image" in sample else 0
-            length_list.append(
-                sum(len(conv["value"].split()) for conv in sample["conversations"])
-                + img_tokens
-            )
-        return length_list
+#     @property
+#     # pyre-fixme[3]: Return type must be annotated.
+#     def lengths(self):
+#         length_list = []
+#         for sample in self.list_data_dict:
+#             img_tokens = 128 if "image" in sample else 0
+#             length_list.append(
+#                 sum(len(conv["value"].split()) for conv in sample["conversations"])
+#                 + img_tokens
+#             )
+#         return length_list
 
-    @property
-    def modality_lengths(self) -> List[int]:
-        length_list = []
-        for sample in self.list_data_dict:
-            cur_len = sum(
-                len(conv["value"].split()) for conv in sample["conversations"]
-            )
-            cur_len = (
-                cur_len if ("image" in sample) or ("video" in sample) else -cur_len
-            )
-            length_list.append(cur_len)
-        return length_list
+#     @property
+#     def modality_lengths(self) -> List[int]:
+#         length_list = []
+#         for sample in self.list_data_dict:
+#             cur_len = sum(
+#                 len(conv["value"].split()) for conv in sample["conversations"]
+#             )
+#             cur_len = (
+#                 cur_len if ("image" in sample) or ("video" in sample) else -cur_len
+#             )
+#             length_list.append(cur_len)
+#         return length_list
 
-    def __len__(self) -> int:
-        return len(self.list_data_dict)
+#     def __len__(self) -> int:
+#         return len(self.list_data_dict)
 
-    def __getitem__(self, i: int) -> Dict[str, torch.Tensor]:
-        sources = self.list_data_dict[i]
-        if isinstance(i, int):
-            sources = [sources]
-        assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
-        has_image = True
-        if "image" in sources[0]:
-            image_file = self.list_data_dict[i]["image"]
-            image_folder = self.data_args.image_folder
-            processor = self.data_args.image_processor
-            full_path = os.path.join(image_folder, image_file)
-            if not os.path.exists(full_path):
-                print(full_path)
-                has_image = False
-                sources = copy.deepcopy([e["conversations"] for e in sources])
-            else:
-                image = Image.open(full_path).convert("RGB")
-                if self.data_args.image_aspect_ratio == "sam":
-                    image = np.array(image)[:, :, ::-1]
-                if self.data_args.image_aspect_ratio == "pad":
-                    # pyre-fixme[3]: Return type must be annotated.
-                    # pyre-fixme[2]: Parameter must be annotated.
-                    def expand2square(pil_img, background_color):
-                        width, height = pil_img.size
-                        if width == height:
-                            return pil_img
-                        elif width > height:
-                            result = Image.new(
-                                pil_img.mode, (width, width), background_color
-                            )
-                            result.paste(pil_img, (0, (width - height) // 2))
-                            return result
-                        else:
-                            result = Image.new(
-                                pil_img.mode, (height, height), background_color
-                            )
-                            result.paste(pil_img, ((height - width) // 2, 0))
-                            return result
+#     def __getitem__(self, i: int) -> Dict[str, torch.Tensor]:
+#         sources = self.list_data_dict[i]
+#         if isinstance(i, int):
+#             sources = [sources]
+#         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
+#         has_image = True
+#         if "image" in sources[0]:
+#             image_file = self.list_data_dict[i]["image"]
+#             image_folder = self.data_args.image_folder
+#             processor = self.data_args.image_processor
+#             full_path = os.path.join(image_folder, image_file)
+#             if not os.path.exists(full_path):
+#                 print(full_path)
+#                 has_image = False
+#                 sources = copy.deepcopy([e["conversations"] for e in sources])
+#             else:
+#                 image = Image.open(full_path).convert("RGB")
+#                 if self.data_args.image_aspect_ratio == "sam":
+#                     image = np.array(image)[:, :, ::-1]
+#                 if self.data_args.image_aspect_ratio == "pad":
+#                     # pyre-fixme[3]: Return type must be annotated.
+#                     # pyre-fixme[2]: Parameter must be annotated.
+#                     def expand2square(pil_img, background_color):
+#                         width, height = pil_img.size
+#                         if width == height:
+#                             return pil_img
+#                         elif width > height:
+#                             result = Image.new(
+#                                 pil_img.mode, (width, width), background_color
+#                             )
+#                             result.paste(pil_img, (0, (width - height) // 2))
+#                             return result
+#                         else:
+#                             result = Image.new(
+#                                 pil_img.mode, (height, height), background_color
+#                             )
+#                             result.paste(pil_img, ((height - width) // 2, 0))
+#                             return result
 
-                    image = expand2square(
-                        image, tuple(int(x * 255) for x in processor.image_mean)
-                    )
-                    image = processor.preprocess(image, return_tensors="pt")[
-                        "pixel_values"
-                    ][0]
-                else:
-                    if self.data_args.image_aspect_ratio != "sam":
-                        image = processor.preprocess(image, return_tensors="pt")[
-                            "pixel_values"
-                        ][0]
-                sources = preprocess_multimodal(
-                    copy.deepcopy([e["conversations"] for e in sources]), self.data_args
-                )
-        elif "video" in sources[0]:
-            video_file = self.list_data_dict[i]["video"]
-            video_folder = self.data_args.image_folder
-            if "webvid" in video_folder:
-                video_file = os.path.join(video_folder, "videos", video_file)
-            elif "ActivityNet" in video_folder:
-                video_file = os.path.join(video_folder, "train_val", video_file)
-            else:
-                video_file = os.path.join(video_folder, video_file)
-            if not os.path.exists(video_file):
-                print("nonexist: {}".format(video_file), flush=True)
-                for sub_folder in os.listdir(video_folder):
-                    if os.path.isdir(os.path.join(video_folder, sub_folder)):
-                        for sub_sub_folder in os.listdir(
-                            os.path.join(video_folder, sub_folder)
-                        ):
-                            print("folder", sub_folder, sub_sub_folder)
-                has_image = False
-                sources = copy.deepcopy([e["conversations"] for e in sources])
-            else:
-                if video_file.endswith(".webm"):
-                    has_image = False
-                    sources = copy.deepcopy([e["conversations"] for e in sources])
-                else:
-                    try:
-                        # if video_file.endswith(".webm"):
-                        #     video_webm = VideoFileClip(video_file)
-                        #     video_frames = np.array(list(video_webm.iter_frames()))
-                        #     sample_fps = round(video_webm.fps / self.data_args.video_fps)
-                        #     frame_idx = [i for i in range(0, len(video_frames), sample_fps)]
-                        #     video = video_frames[frame_idx]
-                        # else:
-                        vr = VideoReader(video_file, ctx=cpu(0), num_threads=1)
-                        sample_fps = round(vr.get_avg_fps() / self.data_args.video_fps)
-                        frame_idx = [i for i in range(0, len(vr), sample_fps)]
-                        video = vr.get_batch(frame_idx).asnumpy()
-                        if self.data_args.image_aspect_ratio == "sam":
-                            image = video[:, :, :, ::-1][:100]
-                        else:
-                            processor = self.data_args.image_processor
-                            image = processor.preprocess(video, return_tensors="pt")[
-                                "pixel_values"
-                            ]
-                        sources = preprocess_multimodal(
-                            copy.deepcopy([e["conversations"] for e in sources]),
-                            self.data_args,
-                        )
-                    except:
-                        has_image = False
-                        sources = copy.deepcopy([e["conversations"] for e in sources])
-        else:
-            has_image = False
-            sources = copy.deepcopy([e["conversations"] for e in sources])
-        data_dict = preprocess(
-            # pyre-fixme[6]: For 1st argument expected `Sequence[str]` but got
-            #  `Union[Dict[typing.Any, typing.Any], List[typing.Any]]`.
-            sources,
-            self.tokenizer,
-            has_image=has_image,
-        )
-        if isinstance(i, int):
-            data_dict = dict(
-                input_ids=data_dict["input_ids"][0], labels=data_dict["labels"][0]
-            )
+#                     image = expand2square(
+#                         image, tuple(int(x * 255) for x in processor.image_mean)
+#                     )
+#                     image = processor.preprocess(image, return_tensors="pt")[
+#                         "pixel_values"
+#                     ][0]
+#                 else:
+#                     if self.data_args.image_aspect_ratio != "sam":
+#                         image = processor.preprocess(image, return_tensors="pt")[
+#                             "pixel_values"
+#                         ][0]
+#                 sources = preprocess_multimodal(
+#                     copy.deepcopy([e["conversations"] for e in sources]), self.data_args
+#                 )
+#         elif "video" in sources[0]:
+#             video_file = self.list_data_dict[i]["video"]
+#             video_folder = self.data_args.image_folder
+#             if "webvid" in video_folder:
+#                 video_file = os.path.join(video_folder, "videos", video_file)
+#             elif "ActivityNet" in video_folder:
+#                 video_file = os.path.join(video_folder, "train_val", video_file)
+#             else:
+#                 video_file = os.path.join(video_folder, video_file)
+#             if not os.path.exists(video_file):
+#                 print("nonexist: {}".format(video_file), flush=True)
+#                 for sub_folder in os.listdir(video_folder):
+#                     if os.path.isdir(os.path.join(video_folder, sub_folder)):
+#                         for sub_sub_folder in os.listdir(
+#                             os.path.join(video_folder, sub_folder)
+#                         ):
+#                             print("folder", sub_folder, sub_sub_folder)
+#                 has_image = False
+#                 sources = copy.deepcopy([e["conversations"] for e in sources])
+#             else:
+#                 if video_file.endswith(".webm"):
+#                     has_image = False
+#                     sources = copy.deepcopy([e["conversations"] for e in sources])
+#                 else:
+#                     try:
+#                         # if video_file.endswith(".webm"):
+#                         #     video_webm = VideoFileClip(video_file)
+#                         #     video_frames = np.array(list(video_webm.iter_frames()))
+#                         #     sample_fps = round(video_webm.fps / self.data_args.video_fps)
+#                         #     frame_idx = [i for i in range(0, len(video_frames), sample_fps)]
+#                         #     video = video_frames[frame_idx]
+#                         # else:
+#                         vr = VideoReader(video_file, ctx=cpu(0), num_threads=1)
+#                         sample_fps = round(vr.get_avg_fps() / self.data_args.video_fps)
+#                         frame_idx = [i for i in range(0, len(vr), sample_fps)]
+#                         video = vr.get_batch(frame_idx).asnumpy()
+#                         if self.data_args.image_aspect_ratio == "sam":
+#                             image = video[:, :, :, ::-1][:100]
+#                         else:
+#                             processor = self.data_args.image_processor
+#                             image = processor.preprocess(video, return_tensors="pt")[
+#                                 "pixel_values"
+#                             ]
+#                         sources = preprocess_multimodal(
+#                             copy.deepcopy([e["conversations"] for e in sources]),
+#                             self.data_args,
+#                         )
+#                     except:
+#                         has_image = False
+#                         sources = copy.deepcopy([e["conversations"] for e in sources])
+#         else:
+#             has_image = False
+#             sources = copy.deepcopy([e["conversations"] for e in sources])
+#         data_dict = preprocess(
+#             # pyre-fixme[6]: For 1st argument expected `Sequence[str]` but got
+#             #  `Union[Dict[typing.Any, typing.Any], List[typing.Any]]`.
+#             sources,
+#             self.tokenizer,
+#             has_image=has_image,
+#         )
+#         if isinstance(i, int):
+#             data_dict = dict(
+#                 input_ids=data_dict["input_ids"][0], labels=data_dict["labels"][0]
+#             )
 
-        # image exist in the data
-        if has_image:
-            if "image" in self.list_data_dict[i]:
-                # pyre-fixme[61]: Local variable `image` is undefined, or not always defined.
-                data_dict["image"] = image
-            elif "video" in self.list_data_dict[i]:
-                # pyre-fixme[61]: Local variable `image` is undefined, or not always defined.
-                data_dict["image"] = image
-        elif self.data_args.is_multimodal:
-            # image does not exist in the data, but the model is multimodal
-            # crop_size = self.data_args.image_processor.crop_size
-            # data_dict["image"] = torch.zeros(3, crop_size["height"], crop_size["width"])
-            if self.data_args.image_aspect_ratio == "sam":
-                if "video" in self.list_data_dict[i]:
-                    data_dict["image"] = np.zeros((1, 1024, 1024, 3)).astype(np.uint8)
-                else:
-                    data_dict["image"] = np.zeros((1024, 1024, 3)).astype(np.uint8)
-            else:
-                crop_size = self.data_args.image_processor.crop_size
-                if "video" in self.list_data_dict[i]:
-                    data_dict["image"] = torch.zeros(
-                        1, 3, crop_size["height"], crop_size["width"]
-                    )
-                else:
-                    data_dict["image"] = torch.zeros(
-                        3, crop_size["height"], crop_size["width"]
-                    )
+#         # image exist in the data
+#         if has_image:
+#             if "image" in self.list_data_dict[i]:
+#                 # pyre-fixme[61]: Local variable `image` is undefined, or not always defined.
+#                 data_dict["image"] = image
+#             elif "video" in self.list_data_dict[i]:
+#                 # pyre-fixme[61]: Local variable `image` is undefined, or not always defined.
+#                 data_dict["image"] = image
+#         elif self.data_args.is_multimodal:
+#             # image does not exist in the data, but the model is multimodal
+#             # crop_size = self.data_args.image_processor.crop_size
+#             # data_dict["image"] = torch.zeros(3, crop_size["height"], crop_size["width"])
+#             if self.data_args.image_aspect_ratio == "sam":
+#                 if "video" in self.list_data_dict[i]:
+#                     data_dict["image"] = np.zeros((1, 1024, 1024, 3)).astype(np.uint8)
+#                 else:
+#                     data_dict["image"] = np.zeros((1024, 1024, 3)).astype(np.uint8)
+#             else:
+#                 crop_size = self.data_args.image_processor.crop_size
+#                 if "video" in self.list_data_dict[i]:
+#                     data_dict["image"] = torch.zeros(
+#                         1, 3, crop_size["height"], crop_size["width"]
+#                     )
+#                 else:
+#                     data_dict["image"] = torch.zeros(
+#                         3, crop_size["height"], crop_size["width"]
+#                     )
 
-        if has_image:
-            if self.data_args.num_points > 0:
-                if "box" in self.list_data_dict[i]:
-                    x1, y1, x2, y2 = self.list_data_dict[i]["box"]
-                    points = []
-                    x = random.uniform(x1, x2)
-                    y = random.uniform(y1, y2)
-                    points.append(torch.tensor([x, y, 1]))
-                    for _ in range(1, self.data_args.num_points):
-                        points.append(torch.tensor([0, 0, 0]))
-                    points = torch.stack(points, dim=0)
-                    data_dict["point"] = points
-                else:
-                    if "point" in self.list_data_dict[i]:
-                        points = torch.tensor(self.list_data_dict[i]["point"])
-                        data_dict["point"] = points
-                    else:
-                        points = []
-                        grid = int(np.sqrt(self.data_args.num_points))
-                        height, width = image.shape[0], image.shape[1]
-                        for i in range(grid):
-                            for j in range(grid):
-                                points.append(
-                                    torch.tensor(
-                                        [
-                                            width / grid / 2.0 + i / grid * width,
-                                            height / grid / 2.0 + j / grid * height,
-                                            1,
-                                        ]
-                                    )
-                                )
-                        points = torch.stack(points, dim=0)
-                        data_dict["point"] = points
-        elif self.data_args.is_multimodal:
-            if self.data_args.num_points > 0:
-                points = []
-                grid = int(np.sqrt(self.data_args.num_points))
-                height, width = data_dict["image"].shape[0], data_dict["image"].shape[1]
-                for i in range(grid):
-                    for j in range(grid):
-                        points.append(
-                            torch.tensor(
-                                [
-                                    width / grid / 2.0 + i / grid * width,
-                                    height / grid / 2.0 + j / grid * height,
-                                    1,
-                                ]
-                            )
-                        )
-                points = torch.stack(points, dim=0)
-                data_dict["point"] = points
+#         if has_image:
+#             if self.data_args.num_points > 0:
+#                 if "box" in self.list_data_dict[i]:
+#                     x1, y1, x2, y2 = self.list_data_dict[i]["box"]
+#                     points = []
+#                     x = random.uniform(x1, x2)
+#                     y = random.uniform(y1, y2)
+#                     points.append(torch.tensor([x, y, 1]))
+#                     for _ in range(1, self.data_args.num_points):
+#                         points.append(torch.tensor([0, 0, 0]))
+#                     points = torch.stack(points, dim=0)
+#                     data_dict["point"] = points
+#                 else:
+#                     if "point" in self.list_data_dict[i]:
+#                         points = torch.tensor(self.list_data_dict[i]["point"])
+#                         data_dict["point"] = points
+#                     else:
+#                         points = []
+#                         grid = int(np.sqrt(self.data_args.num_points))
+#                         height, width = image.shape[0], image.shape[1]
+#                         for i in range(grid):
+#                             for j in range(grid):
+#                                 points.append(
+#                                     torch.tensor(
+#                                         [
+#                                             width / grid / 2.0 + i / grid * width,
+#                                             height / grid / 2.0 + j / grid * height,
+#                                             1,
+#                                         ]
+#                                     )
+#                                 )
+#                         points = torch.stack(points, dim=0)
+#                         data_dict["point"] = points
+#         elif self.data_args.is_multimodal:
+#             if self.data_args.num_points > 0:
+#                 points = []
+#                 grid = int(np.sqrt(self.data_args.num_points))
+#                 height, width = data_dict["image"].shape[0], data_dict["image"].shape[1]
+#                 for i in range(grid):
+#                     for j in range(grid):
+#                         points.append(
+#                             torch.tensor(
+#                                 [
+#                                     width / grid / 2.0 + i / grid * width,
+#                                     height / grid / 2.0 + j / grid * height,
+#                                     1,
+#                                 ]
+#                             )
+#                         )
+#                 points = torch.stack(points, dim=0)
+#                 data_dict["point"] = points
 
-        return data_dict
-
-
-@dataclass
-class DataCollatorForSupervisedDataset(object):
-    """Collate examples for supervised fine-tuning."""
-
-    tokenizer: transformers.PreTrainedTokenizer
-
-    # pyre-fixme[24]: Generic type `dict` expects 2 type parameters, use
-    #  `typing.Dict[<key type>, <value type>]` to avoid runtime subscripting errors.
-    def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        input_ids, labels = tuple(
-            [instance[key] for instance in instances] for key in ("input_ids", "labels")
-        )
-        input_ids = torch.nn.utils.rnn.pad_sequence(
-            input_ids,
-            batch_first=True,
-            # pyre-fixme[6]: For 3rd argument expected `float` but got `Optional[int]`.
-            padding_value=self.tokenizer.pad_token_id,
-        )
-        labels = torch.nn.utils.rnn.pad_sequence(
-            labels, batch_first=True, padding_value=IGNORE_INDEX
-        )
-        input_ids = input_ids[:, : self.tokenizer.model_max_length]
-        labels = labels[:, : self.tokenizer.model_max_length]
-        batch = dict(
-            input_ids=input_ids,
-            labels=labels,
-            # pyre-fixme[6]: For 1st argument expected `Tensor` but got `Optional[int]`.
-            attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
-        )
-
-        # if "image" in instances[0]:
-        #     images = [instance["image"] for instance in instances]
-        #     if all(x is not None and x.shape == images[0].shape for x in images):
-        #         if type(images[0]) is torch.Tensor:
-        #             batch["images"] = torch.stack(images)
-        #         else:
-        #
-        #             batch["images"] = np.stack(images)
-        #     else:
-        #
-        #         #  `List[typing.Any]`.
-        #         batch["images"] = images
-
-        if "image" in instances[0]:
-            images = [instance["image"] for instance in instances]
-            # pyre-fixme[6]: For 2nd argument expected `Tensor` but got `List[typing.Any]`.
-            batch["images"] = images
-
-            if "point" in instances[0]:
-                points = [instance["point"] for instance in instances]
-                batch["points"] = torch.stack(points)
-
-        return batch
+#         return data_dict
 
 
-def make_supervised_data_module(
-    tokenizer: transformers.PreTrainedTokenizer,
-    # pyre-fixme[2]: Parameter must be annotated.
-    data_args,
-    # pyre-fixme[24]: Generic type `dict` expects 2 type parameters, use
-    #  `typing.Dict[<key type>, <value type>]` to avoid runtime subscripting errors.
-) -> Dict:
-    """Make dataset and collator for supervised fine-tuning."""
-    train_dataset = LazySupervisedDataset(
-        tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args
-    )
-    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
-    return dict(
-        train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator
-    )
+# @dataclass
+# class DataCollatorForSupervisedDataset(object):
+#     """Collate examples for supervised fine-tuning."""
+
+#     tokenizer: transformers.PreTrainedTokenizer
+
+#     # pyre-fixme[24]: Generic type `dict` expects 2 type parameters, use
+#     #  `typing.Dict[<key type>, <value type>]` to avoid runtime subscripting errors.
+#     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
+#         input_ids, labels = tuple(
+#             [instance[key] for instance in instances] for key in ("input_ids", "labels")
+#         )
+#         input_ids = torch.nn.utils.rnn.pad_sequence(
+#             input_ids,
+#             batch_first=True,
+#             # pyre-fixme[6]: For 3rd argument expected `float` but got `Optional[int]`.
+#             padding_value=self.tokenizer.pad_token_id,
+#         )
+#         labels = torch.nn.utils.rnn.pad_sequence(
+#             labels, batch_first=True, padding_value=IGNORE_INDEX
+#         )
+#         input_ids = input_ids[:, : self.tokenizer.model_max_length]
+#         labels = labels[:, : self.tokenizer.model_max_length]
+#         batch = dict(
+#             input_ids=input_ids,
+#             labels=labels,
+#             # pyre-fixme[6]: For 1st argument expected `Tensor` but got `Optional[int]`.
+#             attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
+#         )
+
+#         # if "image" in instances[0]:
+#         #     images = [instance["image"] for instance in instances]
+#         #     if all(x is not None and x.shape == images[0].shape for x in images):
+#         #         if type(images[0]) is torch.Tensor:
+#         #             batch["images"] = torch.stack(images)
+#         #         else:
+#         #
+#         #             batch["images"] = np.stack(images)
+#         #     else:
+#         #
+#         #         #  `List[typing.Any]`.
+#         #         batch["images"] = images
+
+#         if "image" in instances[0]:
+#             images = [instance["image"] for instance in instances]
+#             # pyre-fixme[6]: For 2nd argument expected `Tensor` but got `List[typing.Any]`.
+#             batch["images"] = images
+
+#             if "point" in instances[0]:
+#                 points = [instance["point"] for instance in instances]
+#                 batch["points"] = torch.stack(points)
+
+#         return batch
+
+
+# def make_supervised_data_module(
+#     tokenizer: transformers.PreTrainedTokenizer,
+#     # pyre-fixme[2]: Parameter must be annotated.
+#     data_args,
+#     # pyre-fixme[24]: Generic type `dict` expects 2 type parameters, use
+#     #  `typing.Dict[<key type>, <value type>]` to avoid runtime subscripting errors.
+# ) -> Dict:
+#     """Make dataset and collator for supervised fine-tuning."""
+#     train_dataset = LazySupervisedDataset(
+#         tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args
+#     )
+#     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
+#     return dict(
+#         train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator
+#     )
