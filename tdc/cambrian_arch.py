@@ -463,6 +463,7 @@ class CambrianMetaModel:
     )
         if not hasattr(self, "audio_proj"):
             self.audio_proj = nn.Linear(768, self.config.hidden_size)
+            
         return self.audio_encoder
         
     def initialize_compressor(self, config, pretrained_qformer = None, context_token_num = 16):
@@ -479,7 +480,6 @@ class CambrianMetaModel:
             )
         self.Qformer.resize_token_embeddings(len(self.bert_tokenizer))
 
-        # embed()
         self.vision_proj = nn.Linear(self.Qformer.config.hidden_size, embed_dim)
         self.query_proj = nn.Linear(embed_dim, self.Qformer.config.hidden_size)
         
@@ -871,6 +871,7 @@ class CambrianMetaForCausalLM(ABC):
         images,
         image_aux_attention_masks_list=None,
         image_sizes=None,
+        video_indices=None,
         prompts=None,
         audios=None
     ):
@@ -919,6 +920,8 @@ class CambrianMetaForCausalLM(ABC):
                         select_image_aux_list[1].append(image_aux_list[1][i][indices])
                         split_sizes_ori.append(max_num_frames)
                     else:
+                        if video_indices is not None:
+                            sample_indices = video_indices[i]
                         select_image_aux_list[0].append(image_aux_list[0][i])
                         select_image_aux_list[1].append(image_aux_list[1][i])
                         split_sizes_ori.append(image.shape[0])
@@ -1147,8 +1150,6 @@ class CambrianMetaForCausalLM(ABC):
                 self.get_model().mm_projector(image_features_down).to(dtype)
             )
 
-        # embed()
-        # exit()
         if IS_XLA_AVAILABLE:
             image_features = image_features.view(
                 image_features.shape[0], final_height, final_width, -1
@@ -1485,6 +1486,7 @@ class CambrianMetaForCausalLM(ABC):
             cur_input_embeds = self.get_model().embed_tokens(
                 torch.cat(cur_input_ids_noim)
             )
+            # print(torch.cat(cur_input_ids_noim))
             cur_input_embeds_no_im = torch.split(cur_input_embeds, split_sizes, dim=0)
             cur_new_input_embeds = []
             cur_new_labels = []
@@ -1510,213 +1512,219 @@ class CambrianMetaForCausalLM(ABC):
                 if cur_audio is not None:
                     add_audio = True
 
-            # Reshape the visual embeddings into frames.
-            visual_emb_frame = image_features[cur_image_idx].reshape(
-                frame_split_sizes[cur_image_idx],
-                -1,
-                image_features[cur_image_idx].shape[-1]
-            )
-            text_indice = cur_input_ids_noim[-1] != 0
-            text_emb = cur_input_embeds_no_im[-1][text_indice]
-            
-            # get the text_input_ids for qformer
-            prompt = prompts[batch_idx]
-            input_token = self.get_model().bert_tokenizer(
-                prompt, 
-                padding='longest', 
-                truncation=True,
-                max_length=256,
-                return_tensors="pt"
-                ).to(visual_emb_frame.device)
-            
-            new_visual_emb_frames = []
-            seg_indices = segment_frame_indices_all[cur_image_idx] + 1
-            split_points = [0] + seg_indices.tolist() + [len(visual_emb_frame)]
-
-            # 计算每个分段的大小
-            segment_sizes = [split_points[i+1] - split_points[i] for i in range(len(split_points)-1)]
-            segments = torch.split(visual_emb_frame, segment_sizes)
-            
-            # speech_embeds = self.model.audio_encoder.speech_encoder(audios["audio_spectrogram"].to(torch.float32), return_dict=True).last_hidden_state
-            if add_audio and self.model.audio_encoder.beats_path and cur_audio["audio_wav"] is not None:
-                audio_embeds = []
-                audio_sample_rate = 16000
-                dist = 10
-                seg_audio_embeds = []
-                for k in range(0, int(cur_audio["audio_wav"].shape[1] / audio_sample_rate), dist):
-                    wav_start_idx = audio_sample_rate * k
-                    wav_end_idx = int(audio_sample_rate * (k + dist))
-
-                    audio_embed, _ = self.model.audio_encoder.beats.extract_features(
-                        cur_audio["audio_wav"][:, wav_start_idx:wav_end_idx].to(self.device),
-                        padding_mask=cur_audio["audio_wav_mask"][:, wav_start_idx:wav_end_idx].to(self.device),
-                        feature_only=True
-                    )
-                    
-                    sample_len = len(sample_indices[k: k + dist])  # 当前片段长度
-                    for idx, indice in enumerate(sample_indices[k: k + dist]):
-                        token = audio_embed[:, idx * 50:(idx + 1) * 50, :]
-                        if token.shape[1] == 0:
-                            continue
-                        if token.shape[1] != 50:
-                            token = torch.nn.functional.adaptive_avg_pool2d(token, (50, 768))
-
-                        if indice == 1:
-                            if seg_audio_embeds:  
-                                pooled_embed = torch.cat(seg_audio_embeds, dim=1)  # 在时间维拼接
-                                pooled_embed = torch.nn.functional.adaptive_avg_pool2d(pooled_embed, (50, 768))
-                                audio_embeds.append(pooled_embed.to(self.model.dtype))
-                                seg_audio_embeds = []
-                                
-                            seg_audio_embeds.append(token)
-
-                            if idx + 1 < sample_len and sample_indices[k + idx + 1] == 1:
-                                audio_embeds.append(token.to(self.model.dtype))
-                                seg_audio_embeds = []
-                            
-                        elif indice == 0:
-                            seg_audio_embeds.append(token)
-
-                if seg_audio_embeds:
-                    pooled_embed = torch.cat(seg_audio_embeds, dim=1)
-                    pooled_embed = torch.nn.functional.adaptive_avg_pool2d(pooled_embed, (50, 768))
-                    audio_embeds.append(pooled_embed.to(self.model.dtype))
+            if frame_split_sizes is not None:
+                # Reshape the visual embeddings into frames.
+                visual_emb_frame = image_features[cur_image_idx].reshape(
+                    frame_split_sizes[cur_image_idx],
+                    -1,
+                    image_features[cur_image_idx].shape[-1]
+                )
+                text_indice = cur_input_ids_noim[-1] != 0
+                text_emb = cur_input_embeds_no_im[-1][text_indice]
+                # print(text_emb.shape)
                 
-                audio_embeds = torch.cat(audio_embeds)
-                audio_embeds = audio_embeds.flatten(0,1).unsqueeze(0)
-                pad_size = sum(segment_sizes) * 50 - audio_embeds.size(1)
-                pad_audio_embeds = torch.nn.functional.pad(audio_embeds, (0, 0, 0, pad_size, 0, 0), "constant", 0)
-                pad_audio_embeds = pad_audio_embeds.reshape(-1, 50, 768)
-                audio_segments = torch.split(pad_audio_embeds, segment_sizes)
-                # add_audio_embeds, audio_atts = self.model.audio_encoder._encode_auditory_feature(speech_embeds, audio_embeds=audio_embeds)
-            else:
-                audio_embeds = None
+                # get the text_input_ids for qformer
+                prompt = prompts[batch_idx]
+                # print(prompt)
+                input_token = self.get_model().bert_tokenizer(
+                    prompt, 
+                    padding='longest', 
+                    truncation=True,
+                    max_length=256,
+                    return_tensors="pt"
+                    ).to(visual_emb_frame.device)
+                
+                new_visual_emb_frames = []
+                seg_indices = segment_frame_indices_all[cur_image_idx] + 1
+                split_points = [0] + seg_indices.tolist() + [len(visual_emb_frame)]
 
-            for seg_i, segment in enumerate(segments):
-                if len(segment) == 0:
-                    continue
-                for start_idx in range(0, len(segment), 8):
-                    end_idx = min(start_idx + 8, len(segment))
-                    chunk_feature = segment[start_idx:end_idx]  # L, HW, C
-                    key_frame = chunk_feature[0]
+                # 计算每个分段的大小
+                segment_sizes = [split_points[i+1] - split_points[i] for i in range(len(split_points)-1)]
+                segments = torch.split(visual_emb_frame, segment_sizes)
+                
+                if add_audio and self.model.audio_encoder.beats_path and cur_audio["audio_wav"] is not None:
+                    audio_embeds = []
+                    audio_sample_rate = 16000
+                    dist = 10
+                    seg_audio_embeds = []  # 用于存储 1 和它后面的 0 片段
+                    for k in range(0, int(cur_audio["audio_wav"].shape[1] / audio_sample_rate), dist):
+                        wav_start_idx = audio_sample_rate * k
+                        wav_end_idx = int(audio_sample_rate * (k + dist))
+
+                        audio_embed, _ = self.model.audio_encoder.beats.extract_features(
+                            cur_audio["audio_wav"][:, wav_start_idx:wav_end_idx].to(self.device),
+                            padding_mask=cur_audio["audio_wav_mask"][:, wav_start_idx:wav_end_idx].to(self.device),
+                            feature_only=True
+                        )
+                        
+                        sample_len = len(sample_indices[k: k + dist])  # 当前片段长度
+                        for idx, indice in enumerate(sample_indices[k: k + dist]):
+                            token = audio_embed[:, idx * 50:(idx + 1) * 50, :]
+                            if token.shape[1] == 0:
+                                continue
+                            if token.shape[1] != 50:
+                                token = torch.nn.functional.adaptive_avg_pool2d(token, (50, 768))
+
+                            if indice == 1:
+                                if seg_audio_embeds:  
+                                    # 说明上一个 1 后面有 0，现在遇到了新的 1，先 pool 并存入
+                                    pooled_embed = torch.cat(seg_audio_embeds, dim=1)  # 在时间维拼接
+                                    pooled_embed = torch.nn.functional.adaptive_avg_pool2d(pooled_embed, (50, 768))
+                                    audio_embeds.append(pooled_embed.to(self.model.dtype))
+                                    seg_audio_embeds = []
+                                    
+                                # 存入当前的 1
+                                seg_audio_embeds.append(token)
+
+                                # 如果下一个是 1，则直接存入
+                                if idx + 1 < sample_len and sample_indices[k + idx + 1] == 1:
+                                    audio_embeds.append(token.to(self.model.dtype))
+                                    seg_audio_embeds = []
+                                
+                            elif indice == 0:
+                                seg_audio_embeds.append(token)
+
+                    if seg_audio_embeds:
+                        pooled_embed = torch.cat(seg_audio_embeds, dim=1)
+                        pooled_embed = torch.nn.functional.adaptive_avg_pool2d(pooled_embed, (50, 768))
+                        audio_embeds.append(pooled_embed.to(self.model.dtype))
                     
-                    if add_audio:
-                        audio_chunk_feature = audio_segments[seg_i][start_idx:end_idx]
-                        audio_chunk_feature = self.model.audio_proj(audio_chunk_feature)
-                        chunk_feature = torch.cat([chunk_feature, audio_chunk_feature], dim=1)
-                    other_frames = chunk_feature[1:]
-                    
-                    if keep_static and len(chunk_feature) == 1:
-                        if add_sep:
-                            # Add a seperator between frames
-                            new_visual_emb_frames.append(torch.cat([chunk_feature[0], self.model.frame_seg.unsqueeze(0)]))
-                        else:
-                            new_visual_emb_frames.append(chunk_feature[0])
+                    audio_embeds = torch.cat(audio_embeds)
+                    audio_embeds = audio_embeds.flatten(0,1).unsqueeze(0)
+                    pad_size = sum(segment_sizes) * 50 - audio_embeds.size(1)
+
+                    pad_audio_embeds = torch.nn.functional.pad(audio_embeds, (0, 0, 0, pad_size, 0, 0), "constant", 0)
+                    # pad_audio_embeds = pad_audio_embeds.reshape(-1, 50, 768).squeeze(0)
+                    pad_audio_embeds = pad_audio_embeds.reshape(-1, 50, 768)
+                    audio_segments = torch.split(pad_audio_embeds, segment_sizes)
+                    # add_audio_embeds, audio_atts = self.model.audio_encoder._encode_auditory_feature(speech_embeds, audio_embeds=audio_embeds)
+                else:
+                    audio_embeds = None
+
+                for seg_i, segment in enumerate(segments):
+                    if len(segment) == 0:
                         continue
-                    
-                    if keep_static:
-                        visual_input = other_frames
-                    else:
-                        visual_input = chunk_feature
-                    key_frame = key_frame.unsqueeze(0).repeat_interleave(len(visual_input), dim=0)
-                    
-                    # embed()
-                    # Use the ref frame as query_tokens
-                    # Ablation query_type  context_token_num
-                    if query_type == "Avg_pool":
-                        query_tokens = torch.nn.functional.adaptive_avg_pool1d(
-                            key_frame.permute(2, 0, 1),
-                            context_token_num
-                        ).permute(1, 2, 0)
-                        query_tokens = self.get_model().query_proj(query_tokens).expand(visual_input.shape[0], -1, -1)
-                    elif query_type == "learned":
-                        query_tokens = self.get_model().query_tokens.expand(visual_input.shape[0], -1, -1)
-                    
-                    # Ablation text_input
-                    if add_text:
-                        qformer_ids = input_token.input_ids.expand(visual_input.shape[0], -1)
-                    else:
-                        qformer_ids = None
-                    
-                    image_atts = torch.ones(visual_input.size()[:-1], dtype=torch.long).to(
-                    visual_input.device
-                )
-
-                    # Apply Q-former to compress the visual embeddings using the query tokens.
-                    query_output = getattr(
-                        self.get_model(), "Qformer"
-                    ).bert(
-                        input_ids=qformer_ids,
-                        query_embeds=query_tokens,
-                        encoder_hidden_states=visual_input,
-                        encoder_attention_mask=image_atts,
-                        use_cache=False,
-                        return_dict=True,
-                    )
-                    
-                    # InstructBLIP
-                    # visual_input = self.model.qformer_proj(visual_input)
-                    # query_output = getattr(
-                    #     self.get_model(), "Qformer"
-                    # )(
-                    #     input_ids=qformer_ids,
-                    #     query_embeds=query_tokens,
-                    #     encoder_hidden_states=visual_input,
-                    #     encoder_attention_mask=image_atts,
-                    #     use_cache=False,
-                    #     return_dict=True,
-                    # )
-                    
-                    compressed_visual_emb = F.normalize(
-                        self.get_model().vision_proj(query_output.last_hidden_state[:,:query_tokens.shape[1]]), 
-                        dim=-1
-                    )
-                    if keep_static:
-                        if add_sep:
-                            # Add a seperator between frames
-                            new_visual_emb_frame = torch.cat(
-                                [
-                                    torch.cat([chunk_feature[0], self.model.frame_seg.unsqueeze(0)]),
-                                    torch.cat([compressed_visual_emb, self.model.frame_seg.unsqueeze(0).expand(compressed_visual_emb.shape[0], -1, -1)],dim=1).flatten(0,1)
-                                ],
-                                dim=0,
-                            )
+                    for start_idx in range(0, len(segment), 8):
+                        end_idx = min(start_idx + 8, len(segment))
+                        chunk_feature = segment[start_idx:end_idx]  # L, HW, C
+                        key_frame = chunk_feature[0]
+                        
+                        if add_audio:
+                            audio_chunk_feature = audio_segments[seg_i][start_idx:end_idx]
+                            audio_chunk_feature = self.model.audio_proj(audio_chunk_feature)
+                            chunk_feature = torch.cat([chunk_feature, audio_chunk_feature], dim=1)
+                        other_frames = chunk_feature[1:]
+                        
+                        if keep_static and len(chunk_feature) == 1:
+                            if add_sep:
+                                # Add a seperator between frames
+                                new_visual_emb_frames.append(torch.cat([chunk_feature[0], self.model.frame_seg.unsqueeze(0)]))
+                            else:
+                                new_visual_emb_frames.append(chunk_feature[0])
+                            continue
+                        
+                        if keep_static:
+                            visual_input = other_frames
                         else:
-                            new_visual_emb_frame = torch.cat(
-                                [
-                                    chunk_feature[0],
-                                    compressed_visual_emb.flatten(0,1)
-                                ],
-                                dim=0,
-                            )
-                    else:
-                        if add_sep:
-                            new_visual_emb_frame = torch.cat([compressed_visual_emb, self.model.frame_seg.unsqueeze(0).expand(compressed_visual_emb.shape[0], -1, -1)],dim=1).flatten(0,1)
+                            visual_input = chunk_feature
+                        key_frame = key_frame.unsqueeze(0).repeat_interleave(len(visual_input), dim=0)
+                        
+                        # Use the ref frame as query_tokens
+                        # Ablation query_type  context_token_num
+                        if query_type == "Avg_pool":
+                            query_tokens = torch.nn.functional.adaptive_avg_pool1d(
+                                key_frame.permute(2, 0, 1),
+                                context_token_num
+                            ).permute(1, 2, 0)
+                            query_tokens = self.get_model().query_proj(query_tokens).expand(visual_input.shape[0], -1, -1)
+                        elif query_type == "learned":
+                            query_tokens = self.get_model().query_tokens.expand(visual_input.shape[0], -1, -1)
+                        
+                        # Ablation text_input
+                        if add_text:
+                            qformer_ids = input_token.input_ids.expand(visual_input.shape[0], -1)
                         else:
-                            new_visual_emb_frame = compressed_visual_emb.flatten(0,1)
-                    
-                    new_visual_emb_frames.append(new_visual_emb_frame)
+                            qformer_ids = None
+                        
+                        image_atts = torch.ones(visual_input.size()[:-1], dtype=torch.long).to(
+                        visual_input.device
+                    )
 
-            reduced_visual_len = sum([x.shape[0] for x in new_visual_emb_frames])
-            
-            # print("video_len:", visual_len)
-            # print("reduced_video_len:", reduced_visual_len)
-            # print("max_visual_len:", max_visual_len)
+                        # Apply Q-former to compress the visual embeddings using the query tokens.
+                        query_output = getattr(
+                            self.get_model(), "Qformer"
+                        ).bert(
+                            input_ids=qformer_ids,
+                            query_embeds=query_tokens,
+                            encoder_hidden_states=visual_input,
+                            encoder_attention_mask=image_atts,
+                            use_cache=False,
+                            return_dict=True,
+                        )
+                        
+                        # InstructBLIP
+                        # visual_input = self.model.qformer_proj(visual_input)
+                        # query_output = getattr(
+                        #     self.get_model(), "Qformer"
+                        # )(
+                        #     input_ids=qformer_ids,
+                        #     query_embeds=query_tokens,
+                        #     encoder_hidden_states=visual_input,
+                        #     encoder_attention_mask=image_atts,
+                        #     use_cache=False,
+                        #     return_dict=True,
+                        # )
+                        
+                        compressed_visual_emb = F.normalize(
+                            self.get_model().vision_proj(query_output.last_hidden_state[:,:query_tokens.shape[1]]), 
+                            dim=-1
+                        )
+                        if keep_static:
+                            if add_sep:
+                                # Add a seperator between frames
+                                new_visual_emb_frame = torch.cat(
+                                    [
+                                        torch.cat([chunk_feature[0], self.model.frame_seg.unsqueeze(0)]),
+                                        torch.cat([compressed_visual_emb, self.model.frame_seg.unsqueeze(0).expand(compressed_visual_emb.shape[0], -1, -1)],dim=1).flatten(0,1)
+                                    ],
+                                    dim=0,
+                                )
+                            else:
+                                new_visual_emb_frame = torch.cat(
+                                    [
+                                        chunk_feature[0],
+                                        compressed_visual_emb.flatten(0,1)
+                                    ],
+                                    dim=0,
+                                )
+                        else:
+                            if add_sep:
+                                new_visual_emb_frame = torch.cat([compressed_visual_emb, self.model.frame_seg.unsqueeze(0).expand(compressed_visual_emb.shape[0], -1, -1)],dim=1).flatten(0,1)
+                            else:
+                                new_visual_emb_frame = compressed_visual_emb.flatten(0,1)
+                        
+                        new_visual_emb_frames.append(new_visual_emb_frame)
 
-            if reduced_visual_len > max_visual_len:
-                force_remove = math.ceil(
-                    (reduced_visual_len - max_visual_len)
-                    / len(new_visual_emb_frames)
-                )
-                for chunk_i in range(len(new_visual_emb_frames)):
-                    new_visual_emb_frames[chunk_i] = new_visual_emb_frames[chunk_i][
-                        :-force_remove
-                    ]
-                new_visual_emb_frames = torch.cat(new_visual_emb_frames, dim=0)
-            else:
-                new_visual_emb_frames = torch.cat(new_visual_emb_frames, dim=0)
+                reduced_visual_len = sum([x.shape[0] for x in new_visual_emb_frames])
+                
+                # print("video_len:", visual_len)
+                # print("reduced_video_len:", reduced_visual_len)
+                # print("max_visual_len:", max_visual_len)
 
-            image_features[cur_image_idx] = new_visual_emb_frames[:max_visual_len]
+                if reduced_visual_len > max_visual_len:
+                    force_remove = math.ceil(
+                        (reduced_visual_len - max_visual_len)
+                        / len(new_visual_emb_frames)
+                    )
+                    for chunk_i in range(len(new_visual_emb_frames)):
+                        new_visual_emb_frames[chunk_i] = new_visual_emb_frames[chunk_i][
+                            :-force_remove
+                        ]
+                    new_visual_emb_frames = torch.cat(new_visual_emb_frames, dim=0)
+                else:
+                    new_visual_emb_frames = torch.cat(new_visual_emb_frames, dim=0)
+
+                image_features[cur_image_idx] = new_visual_emb_frames[:max_visual_len]
             
             ####
             for i in range(num_images + 1):

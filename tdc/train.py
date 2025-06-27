@@ -412,11 +412,15 @@ def prepare_multimodal_data(
     )
 
 def uniform_sample(image, num_sample=200):
+    sample_indices = torch.ones(len(image), dtype= torch.int16)
+
     if len(image) > num_sample:
         interval = len(image) / float(num_sample)
         indices = [int(interval * i) for i in range(num_sample)]
         image = [image[idx] for idx in indices]
-    return image
+        sample_indices[indices] -= 1
+        sample_indices = 1 - sample_indices
+    return image, sample_indices
 
 class LazySupervisedDataset(Dataset):
     """Dataset for supervised fine-tuning."""
@@ -589,12 +593,8 @@ class LazySupervisedDataset(Dataset):
                             image = vr.get_batch(frame_idx).asnumpy()
                             image_size = image[0].shape[:2]
                         if self.data_args.uniform_sample:
-                            image = uniform_sample(image, num_sample=200)
-                            # num_sample = 100
-                            # if len(image) > num_sample:
-                            #     interval = len(image) / float(num_sample)
-                            #     indices = [int(interval * i) for i in range(num_sample)]
-                            #     image = [image[idx] for idx in indices]
+                            image, sample_indices = uniform_sample(image, num_sample=200)
+
                     except:
                         print("fail to load video: ", video_file, flush=True)
                         return self.__getitem__(0)
@@ -602,8 +602,8 @@ class LazySupervisedDataset(Dataset):
                     print("Not exist: ", video_file, flush=True)
                     return self.__getitem__(0)
             
-            if not has_audio:
-                image = uniform_sample(image, num_sample=180)
+            # if not has_audio:
+            image, sample_indices = uniform_sample(image, num_sample=224)
             # pyre-fixme[3]: Return type must be annotated.
             # pyre-fixme[2]: Parameter must be annotated.
             def expand2square(pil_img, background_color):
@@ -688,6 +688,7 @@ class LazySupervisedDataset(Dataset):
             data_dict["image_aux_list"] = image_list
             image_size = (crop_size, crop_size)
         data_dict["image_size"] = image_size  # pyre-fixme
+        data_dict["video_indices"] = sample_indices
         
         has_audio = self._has_audio(dat)
         if has_audio:
@@ -730,6 +731,7 @@ class DataCollatorForSupervisedDataset(object):
         input_ids, labels = tuple(
             [instance[key] for instance in instances] for key in ("input_ids", "labels")
         )
+        video_indices = [instance["video_indices"] for instance in instances]
         prompts = [instance["prompts"] for instance in instances]
         audios = [instance["audio"] for instance in instances]
         max_length = self.tokenizer.model_max_length
@@ -833,6 +835,7 @@ class DataCollatorForSupervisedDataset(object):
             attention_mask=new_attention_mask,
             position_ids=new_position_ids,
             image_aux_attention_masks_list=im_aux_attention_masks_list,
+            video_indices=video_indices,
             prompts=prompts,
             audios=audios
         )
@@ -981,13 +984,16 @@ def train() -> None:
             for listed_name in non_lora_trainable_params:
                 if listed_name in name:
                     param.requires_grad = True
+                    # print(name)
 
         for name, p in model.named_parameters():
             if not "lora" in name:
                 non_lora_params.append(name)
             else:
                 lora_trainable_params.append(name)
-
+        # for name, p in model.named_parameters():
+        #     if p.requires_grad and name in non_lora_params:
+        #         print(name)
         model.config._attn_implementation_autoset = False
         
     tokenizer = transformers.AutoTokenizer.from_pretrained(
@@ -1138,7 +1144,16 @@ def train() -> None:
         )
         if model_args.tune_mm_mlp_adapter:
             model.requires_grad_(False)
-
+            # for p in model.get_model().mm_projector.parameters():
+            #     p.requires_grad = True
+            # tune_modules = [
+            #     "query_tokens",
+            #     "Qformer",
+            #     "vision_proj",
+            #     "text_proj",
+            #     "qformer_proj",
+            #     "frame_seg"
+            # ]
             tune_modules = [
                 "mm_projector",
                 "pos_emb",
@@ -1181,9 +1196,14 @@ def train() -> None:
         model.initialize_vision_tokenizer(model_args, tokenizer=tokenizer)
 
     # initialize compression modules    
+    # from IPython import embed
+    # embed()
     unfreeze_mm_compressor = model_args.unfreeze_mm_compressor
     if model_args.pretrained_qformer:
         model.get_model().initialize_compressor(model.config, model_args.pretrained_qformer, model_args.context_token_num)
+    
+    # for p in model.model.Qformer.cls.parameters():
+    #     p.requires_grad = False
                 
     audio_input = model_args.audio_input
     if audio_input:
@@ -1208,6 +1228,9 @@ def train() -> None:
     print(f"Totol params: {total_params / 1024 / 1024}M")
     print(f"Trainable params: {trainable_params / 1024 / 1024}M")
     
+    # for name, param in model.named_parameters():
+    #     if param.requires_grad:
+    #         print(name)
 
     if training_args.bf16:
         model.to(torch.bfloat16)

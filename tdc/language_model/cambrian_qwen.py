@@ -248,6 +248,7 @@ class CambrianQwenForCausalLM(Qwen2ForCausalLM, CambrianMetaForCausalLM):
         modalities: Optional[List[str]] = ["image"],
         dpo_forward: Optional[bool] = False,
         cache_position=None,
+        video_indices=None,
         prompts=None,
         audios=None
     ) -> Union[Tuple, CausalLMOutputWithPast]:
@@ -277,6 +278,7 @@ class CambrianQwenForCausalLM(Qwen2ForCausalLM, CambrianMetaForCausalLM):
                 images,
                 image_aux_attention_masks_list,
                 image_sizes,
+                video_indices,
                 prompts,
                 audios
             )
@@ -400,6 +402,7 @@ class CambrianQwenForCausalLM(Qwen2ForCausalLM, CambrianMetaForCausalLM):
         inputs: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
         image_sizes: Optional[torch.Tensor] = None,
+        video_indices: Optional[torch.Tensor] = None,
         prompt: Optional[str] = None,
         audio: Optional[dict] = None,
         **kwargs,
@@ -429,6 +432,7 @@ class CambrianQwenForCausalLM(Qwen2ForCausalLM, CambrianMetaForCausalLM):
                 None,
                 images,
                 image_sizes=image_sizes,
+                video_indices=[None],
                 prompts=[prompt],
                 audios=[audio]
             )
