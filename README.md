@@ -73,8 +73,8 @@ Modify PREV_STAGE_CHECKPOINT in the training scripts to your first stage model p
 
 Change `image_token_len` and `query_num_list` in `config.json` to 144
 
++ Stage 2: Video Instruction Tuning
 ```
-# Stage 2: Video Instruction Tuning
 sh scripts/train_video_qwen.sh
 sh scripts/train_video_llama3_2.sh
 ```
