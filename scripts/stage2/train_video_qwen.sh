@@ -6,7 +6,7 @@ PATH_TO_FOLDER=""
 VERSION="qwen"
 
 CUDA_LAUNCH_BLOCKING=1 TORCH_DISTRIBUTED_DEBUG=DETAIL torchrun --nproc_per_node=8 \
-tdc/train_video_audio.py \
+tdc/train.py \
 --output_dir "./" \
 --input_model_filename $PREV_STAGE_CHECKPOINT \
 --output_model_filename "./checkpoints/mm_cambrian_qwen_video" \
