@@ -904,28 +904,41 @@ class CambrianMetaForCausalLM(ABC):
                 if image.ndim == 3:
                     split_sizes_ori.append(1)
                 else: 
-                    sample_indices = torch.ones(image.shape[0], dtype= torch.int16)
                     max_num_frames = self.get_max_num_frames(input_ids[i])
-                    max_num_frames = min(max_num_frames, 224) # in case of OOM
-                    # max_num_frames = min(max_num_frames, 140) # in case of OOM
+                    # max_num_frames = min(max_num_frames, 224) # in case of OOM
+                    max_num_frames = min(max_num_frames, 400) # in case of OOM
                     
                     if image.shape[0] > max_num_frames:
                         interval = len(image) / float(max_num_frames)
                         indices = [int(interval * i) for i in range(max_num_frames)]
-                        
-                        sample_indices[indices] -= 1
-                        sample_indices = 1 - sample_indices
                         # image = image[indices]
                         select_image_aux_list[0].append(image_aux_list[0][i][indices])
                         select_image_aux_list[1].append(image_aux_list[1][i][indices])
                         split_sizes_ori.append(max_num_frames)
+                        
+                        if video_indices is not None:
+                            sample_pos = torch.where(video_indices[i] == 1)[0]
+                            new_indices = torch.zeros_like(video_indices[i])
+                            new_indices[sample_pos[indices]] = 1
+                            sample_indices = new_indices
+                        else:
+                            sample_indices = torch.zeros(image.shape[0], dtype=torch.int16)
+                            sample_indices[indices] = 1
                     else:
+                        # from IPython import embed
+                        # embed()
+                        # exit()
                         if video_indices is not None:
                             sample_indices = video_indices[i]
+                        else:
+                            sample_indices = torch.ones(image.shape[0], dtype= torch.int16)
                         select_image_aux_list[0].append(image_aux_list[0][i])
                         select_image_aux_list[1].append(image_aux_list[1][i])
                         split_sizes_ori.append(image.shape[0])
-                        
+                    
+                    # print("Length:", len(sample_indices))
+                    # print("sample_indices:", sample_indices)
+                    
                     frame_indices.append(sample_indices)
 
             image_aux_list = select_image_aux_list
