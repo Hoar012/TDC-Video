@@ -24,7 +24,7 @@ import torch
 import transformers
 
 from decord import cpu, VideoReader
-from petrel_client.client import Client
+# from petrel_client.client import Client
 from io import BytesIO
 
 import sys
@@ -444,7 +444,7 @@ class LazySupervisedDataset(Dataset):
         # pyre-fixme[4]: Attribute must be annotated.
         self.length = self._get_length()
         
-        self.client = Client()
+        # self.client = Client()
 
     # pyre-fixme[3]: Return type must be annotated.
     def _get_length(self):
