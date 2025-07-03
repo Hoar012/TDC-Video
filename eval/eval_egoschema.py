@@ -78,12 +78,13 @@ def train(args) -> None:
     
     version = args.version
     model_name = args.model_name
+    model_base = args.model_base
     model_path = args.model_path
 
-    # torch.distributed.barrier()
+    torch.distributed.barrier()
     tokenizer, model, image_processor, context_len = load_pretrained_model(
         model_path,  # pyre-fixme
-        None,
+        model_base,
         model_name,
         device_map=None,
     )
@@ -116,7 +117,7 @@ def train(args) -> None:
         a2 = line["option 2"]
         a3 = line["option 3"]
         a4 = line["option 4"]
-        qs = f"Question: {question}\nOptions:\n(A) {a0}\n(B) {a1}\n(C) {a2}\n(D) {a3}\n(E) {a4}\nRespond with only the letter (A, B, C, D or E) of the correct option."
+        t_prompt = qs = f"Question: {question}\nOptions:\n(A) {a0}\n(B) {a1}\n(C) {a2}\n(D) {a3}\n(E) {a4}\nRespond with only the letter (A, B, C, D or E) of the correct option."
         video_path = os.path.join(
             args.data_path,
             "videos",
@@ -195,6 +196,7 @@ def train(args) -> None:
                 max_new_tokens=5,  
                 use_cache=True,
                 stopping_criteria=[stopping_criteria],
+                prompt=t_prompt
             )
         if isinstance(output_ids, tuple):
             output_ids = output_ids[0]
@@ -295,12 +297,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--model_path', default="./checkpoints/tdc_qwen")
+    parser.add_argument('--model_base', default=None)
     parser.add_argument('--model_name', default="cambrian_qwen")
     parser.add_argument('--version', default="qwen")
     parser.add_argument('--local-rank', default=0)
     parser.add_argument('--data_path', required=True)
     args = parser.parse_args()
-    
+
     args.local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(args.local_rank)
 
