@@ -14,12 +14,14 @@ import re
 import shutil
 import uuid
 from itertools import chain
-import argparse, time
+import argparse
+import time
 
 import sys
 sys.path.append('./')
 import numpy as np
 from PIL import Image
+import pandas as pd
 
 import torch
 
@@ -37,85 +39,11 @@ from tdc.mm_datautils import (
     tokenizer_image_token,
 )
 
-from decord import cpu, VideoReader  
+from decord import cpu, VideoReader  # @manual=fbsource//third-party/pypi/decord:decord
 from torch import distributed as dist
 from tqdm import tqdm
 
 from transformers.trainer_pt_utils import IterableDatasetShard
-from eval.cot import LongCoT
-
-tasks = {
-    "Action Sequence": (
-        "action_sequence.json",
-        "star/Charades_v1_480/",
-        "video",
-        True,
-    ),  # has start & end
-    "Action Prediction": (
-        "action_prediction.json",
-        "star/Charades_v1_480/",
-        "video",
-        True,
-    ),  # has start & end
-    "Action Antonym": ("action_antonym.json", "ssv2_video/", "video", False),
-    "Fine-grained Action": (
-        "fine_grained_action.json",
-        "Moments_in_Time_Raw/videos/",
-        "video",
-        False,
-    ),
-    "Unexpected Action": ("unexpected_action.json", "FunQA_test/test/", "video", False),
-    "Object Existence": (
-        "object_existence.json",
-        "clevrer/video_validation/",
-        "video",
-        False,
-    ),
-    "Object Interaction": (
-        "object_interaction.json",
-        "star/Charades_v1_480/",
-        "video",
-        True,
-    ),  # has start & end
-    "Object Shuffle": ("object_shuffle.json", "perception/videos/", "video", False),
-    "Moving Direction": (
-        "moving_direction.json",
-        "clevrer/video_validation/",
-        "video",
-        False,
-    ),
-    "Action Localization": (
-        "action_localization.json",
-        "sta/sta_video/",
-        "video",
-        True,
-    ),  # has start & end
-    "Scene Transition": ("scene_transition.json", "scene_qa/video/", "video", False),
-    "Action Count": ("action_count.json", "perception/videos/", "video", False),
-    "Moving Count": ("moving_count.json", "clevrer/video_validation/", "video", False),
-    "Moving Attribute": (
-        "moving_attribute.json",
-        "clevrer/video_validation/",
-        "video",
-        False,
-    ),
-    "State Change": ("state_change.json", "perception/videos/", "video", False),
-    "Fine-grained Pose": ("fine_grained_pose.json", "nturgbd/", "video", False),
-    "Character Order": ("character_order.json", "perception/videos/", "video", False),
-    "Egocentric Navigation": ("egocentric_navigation.json", "vlnqa/", "video", False),
-    "Episodic Reasoning": (
-        "episodic_reasoning.json",
-        "tvqa/frames_fps3_hq/",
-        "frame",
-        True,
-    ),  # has start & end, read frame
-    "Counterfactual Inference": (
-        "counterfactual_inference.json",
-        "clevrer/video_validation/",
-        "video",
-        False,
-    ),
-}
 
 class EvalDataset(torch.utils.data.IterableDataset):
     """Dataset for supervised fine-tuning."""
@@ -126,44 +54,22 @@ class EvalDataset(torch.utils.data.IterableDataset):
     ) -> None:
         super(EvalDataset, self).__init__()
 
-        self.data_path = data_path
+        # pyre-fixme[4]: Attribute must be annotated.
+        self.data = json.load(open(
+                        os.path.join(
+                        data_path, "mc_question_valid.json"
+                    ), "r"))
+    
+        datalist = []
+        for video_id in self.data:
+            mc_questions = self.data[video_id]["mc_question"]
+            for line in mc_questions:
+                line["video_id"] = video_id
+                line["id"] = len(datalist)
+                datalist.append(line)
 
-        list_data_dict = []
-        for task_name, task in tasks.items():
-            json_file = os.path.join(data_path, "json", task[0])
-            vis_folder = os.path.join(data_path, "video", task[1])
-            with open(json_file, "r") as f:
-                json_data = json.load(f)
-            for data in json_data:
-                video_path = os.path.join(vis_folder, data["video"])
-                answer = data["answer"]
-                question = data["question"]
-                answer_idx = -1
-                letters = []
-                options = data["candidates"]
-                options_string = ""
-                for option_idx, c in enumerate(options):
-                    letters.append(f"{chr(ord('A') + option_idx)}")
-                    options_string += f"({chr(ord('A') + option_idx)}) {c}\n"
-                    if c == answer:
-                        answer_idx = option_idx
-                prompt = f"Question: {question}\nOptions:\n{options_string}Answer with the option's letter from the given choices directly and only give the best option."
-                list_data_dict.append(
-                    {
-                        "task_type": task_name,
-                        "bound": (data["start"], data["end"]) if task[3] else task[3],
-                        "question": question,
-                        "prompt": prompt,
-                        "answer": answer_idx,
-                        "answer_word": data["answer"],
-                        "video_name": data["video"].split(".")[0],
-                        "video": video_path,
-                        "data_type": task[2],
-                        "letters": ",".join(letters),
-                    }
-                )
-
-        self.data = list_data_dict
+                # {"id": 0, "question": "Is the camera moving or static?", "options": ["I don't know", "moving", "static or shaking"], "answer_id": 2, "area": "physics", "reasoning": "descriptive", "tag": ["motion"]}
+        self.data = datalist
 
     def __len__(self) -> int:
         return len(self.data)
@@ -183,9 +89,9 @@ def train(args) -> None:
     
     version = args.version
     model_name = args.model_name
-    model_path = args.model_path
     model_base = args.model_base
-    
+    model_path = args.model_path
+
     torch.distributed.barrier()
     tokenizer, model, image_processor, context_len = load_pretrained_model(
         model_path,  # pyre-fixme
@@ -195,7 +101,7 @@ def train(args) -> None:
     )
     model.get_model().config.drop_threshold = 0.8
     model.config.use_cache = True
-    model.cuda()
+    # model.cuda()
     dataset = EvalDataset(
         data_path=args.data_path,
     )
@@ -212,78 +118,32 @@ def train(args) -> None:
     final_output = [None] * world_size
 
     for line in tqdm(shard_dataset):
-        video_name = line["video_name"]
-        answer = line["answer"]
-        qs = line["prompt"]
-        task_type = line["task_type"]
-        video_path = line["video"]
-        bound = line["bound"]
-        data_type = line["data_type"]
-        letters = line["letters"].split(",")
+        idx = line["id"]
+        video_id = line["video_id"]
+        question = line["question"]
+        a0 = line["options"][0]
+        a1 = line["options"][1]
+        a2 = line["options"][2]
+        t_prompt = qs = f"Question: {question}\nOptions:\n(A) {a0}\n(B) {a1}\n(C) {a2}\nRespond with only the letter (A, B or C) of the correct option."
+        video_path = os.path.join(
+            args.data_path,
+            "videos",
+            f"{video_id}.mp4",
+        )
 
         if os.path.exists(video_path):
-            if data_type == "video":
-                vr = VideoReader(video_path, ctx=cpu(0), num_threads=1)
-                max_frame = len(vr) - 1
-                fps = float(vr.get_avg_fps())
-                if bound:
-                    start, end = bound[0], bound[1]
-                    start_idx = max(0, round(start * fps))
-                    end_idx = min(round(end * fps), max_frame)
-                    frame_indices = np.array(
-                        [
-                            i
-                            for i in range(
-                                start_idx,
-                                end_idx,
-                                # round(fps / 2),
-                                round(fps / 1),
-                            )
-                        ]
-                    )
-                else:
-                    frame_indices = np.array(
-                        [
-                            i
-                            for i in range(
-                                0,
-                                len(vr),
-                                # round(fps / 2),
-                                round(fps / 1),
-                            )
-                        ]
-                    )
-                video = []
-                for frame_index in frame_indices:
-                    img = vr[frame_index].asnumpy()
-                    video.append(img)
-                video = np.stack(video)
-            else:
-                max_frame = len(os.listdir(video_path))
-                images_group = list()
-                fps = 3
-                if bound:
-                    start, end = bound[0], bound[1]
-                else:
-                    start, end = -100000, 100000
-                start_idx = max(1, round(start * fps))
-                end_idx = min(round(end * fps), max_frame)
-                frame_indices = [
+            vr = VideoReader(video_path, ctx=cpu(0))
+            fps = round(vr.get_avg_fps())
+            frame_idx = [
                     i
-                    for i in range(
-                        start_idx,
-                        end_idx,
-                        # round(fps / 2),
-                        round(fps / 1),
-                    )
+                    for i in range(0, len(vr), round(fps / 1))
                 ]
-                for frame_index in frame_indices:
-                    img = Image.open(
-                        os.path.join(video_path, f"{frame_index:05d}.jpg")
-                    ).convert("RGB")
-                    images_group.append(np.array(img))
-                video = np.stack(images_group)
-            
+            if len(frame_idx) > 1000:
+                frame_idx = [
+                    frame_idx[i]
+                    for i in range(0, len(frame_idx), len(frame_idx) // 1000)
+                ]
+            video = vr.get_batch(frame_idx).asnumpy()
             image_sizes = [video[0].shape[:2]]
             video = process_images(video, image_processor, model.config)
             video = [item.unsqueeze(0) for item in video]
@@ -292,16 +152,6 @@ def train(args) -> None:
             image_sizes = [(1024, 1024)]
             video = process_images(video, image_processor, model.config)
 
-        if args.use_lvcot and len(video) > 30:
-            cot_outputs = LongCoT(model, video, image_sizes, tokenizer, "qwen", qs, max_forward = 2)
-            cot_prompt = " ".join(cot_outputs)
-        else:
-            cot_prompt = f"This is a video clip from 0s to {len(video)}s. "
-            cot_prompt = f""
-            
-        
-        qs = cot_prompt + qs
-        
         if getattr(model.config, "mm_use_im_start_end", False):
             qs = (
                 DEFAULT_IM_START_TOKEN
@@ -341,10 +191,10 @@ def train(args) -> None:
                 image_sizes=image_sizes,
                 do_sample=False,
                 temperature=0.0,
-                max_new_tokens=5,  
+                max_new_tokens=16,
                 use_cache=True,
                 stopping_criteria=[stopping_criteria],
-                prompt=line["prompt"]
+                prompt=t_prompt
             )
         if isinstance(output_ids, tuple):
             output_ids = output_ids[0]
@@ -356,33 +206,27 @@ def train(args) -> None:
             pred = pred.strip()
         pred = pred.replace("Answer", "")
 
-        pred_answer = re.findall(
-            f"[\(,\ ]*[{letters[0]}-{letters[-1]}][\),\ ]*", pred
-        )
+        letters = ["A", "B", "C"]
+        pred_answer = re.findall("[\(\ ]*[A-C][\)\ ]*", pred)
         if len(pred_answer) <= 0:
             pred_answer = [""]
-        pred_answer = pred_answer[0].strip()
-        pred_answer = pred_answer.strip("()")
+        pred_answer = pred_answer[0].strip().strip("()")
+
         if pred_answer in letters:
             pred_idx = letters.index(pred_answer)
-            pred = letters[pred_idx]
         else:
             print("pred_answer: ", pred_answer, " pred: ", pred, flush=True)
-            pred_idx = 0
-            pred = letters[pred_idx]
+            pred_idx = 2
 
-        ans_id = uuid.uuid4()
         output.append(
             {
-                "question": line["question"],
+                "idx": idx,
                 "prompt": qs,
-                "answer": answer,
-                "pred": pred_idx,
-                "task_type": task_type,
-                "answer_id": str(ans_id),
-                "model_id": model_name,
-                "video_name": video_name,
-                "metadata": {},
+                "pred": pred,
+                "pred_answer": letters[pred_idx],
+                "correct_answer": letters[line["answer_id"]],
+                "model_path": model_path,
+                "video_path": video_path
             }
         )
 
@@ -391,41 +235,33 @@ def train(args) -> None:
         final_output,
         output,
     )
-    
     all_output = list(chain(*final_output))
     global_rank = dist.get_rank()
     if global_rank == 0:
-        if not os.path.exists("./results/MVBench"):
-            os.makedirs("./results/MVBench")
-        
+        if not os.path.exists("./results/PerceptionTest"):
+            os.mkdir("./results/PerceptionTest")
+
         save_time = time.strftime("%Y-%m-%d-%H:%M:%S", time.localtime())
 
         with open(
-            os.path.join("./results/MVBench", f"outputs-{save_time}.json"),
+            os.path.join("./results/PerceptionTest", f"outputs-{save_time}.json"),
             "w",
         ) as f:
             json.dump(all_output, f)
 
-        task_types = tasks.keys()
-        task_acc = {x: [] for x in task_types}
-        acc = []
+        correct = 0
+        total = 0
+        for output in all_output:
+            total += 1
+            if output["pred_answer"] == output["correct_answer"]:
+                correct += 1
 
-        for i, x in enumerate(all_output):
-            value = 1
-            if x["pred"] != x["answer"]:
-                value = 0
-            acc.append(value)
-            task_acc[x["task_type"]].append(value)
-
-        acc = sum(acc) * 100 / len(acc)
-        task_acc = {x: sum(task_acc[x]) * 100 / len(task_acc[x]) for x in task_acc}
-        print(f"Accuracy: ", acc)
-        print("Task ccuracy", task_acc)
-
-        task_acc["avg"] = acc
-
-        with open(os.path.join("./results/MVBench", f"result-{save_time}.json"), "w") as f:
-            json.dump(task_acc, f)
+        print(f"Accuracy: {correct / total}")
+        result = {"acc": correct / total, "model_path": model_path, "model_name": model_name}
+            
+        with open(os.path.join("./results/PerceptionTest", f"result-{save_time}.json"), "w") as f:
+            json.dump(result, f)
+            
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -436,11 +272,9 @@ if __name__ == "__main__":
     parser.add_argument('--version', default="qwen")
     parser.add_argument('--local-rank', default=0)
     parser.add_argument('--data_path', required=True)
-    parser.add_argument('--use_lvcot', default=False)
-    
     args = parser.parse_args()
 
     args.local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(args.local_rank)
-    
+
     train(args)

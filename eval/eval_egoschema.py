@@ -57,7 +57,7 @@ class EvalDataset(torch.utils.data.IterableDataset):
         # pyre-fixme[4]: Attribute must be annotated.
         self.data = json.load(open(
                         os.path.join(
-                        args.data_path, "questions.json"
+                        data_path, "questions.json"
                     ), "r"))
 
     def __len__(self) -> int:
