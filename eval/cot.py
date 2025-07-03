@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-from tdc.builder import load_pretrained_model
 from tdc.constants import (
     DEFAULT_IMAGE_TOKEN,
     IMAGE_TOKEN_INDEX,
@@ -27,7 +26,6 @@ def LongCoT(model, video, image_sizes, tokenizer, version, question, max_forward
             continue
         start_time = i * seg_len
         end_time = min((i+1) * seg_len, video[0].shape[1])
-        prefix_prompt = f"Summarize the key information from the video segment between {start_time}s and {end_time}s that is relevant to answering the question: "
         prefix_prompt = f"Summarize the key information from the video segment to help answer the question: "
         
         prompt = "<image>\n" + prefix_prompt + question
