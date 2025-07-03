@@ -150,15 +150,17 @@ class EvalDataset(torch.utils.data.IterableDataset):
 
 
 def train(args) -> None:
+    dist.init_process_group(backend="nccl", timeout=datetime.timedelta(hours=8))
     
     version = args.version
     model_name = args.model_name
+    model_base = args.model_base
     model_path = args.model_path
 
-    # torch.distributed.barrier()
+    torch.distributed.barrier()
     tokenizer, model, image_processor, context_len = load_pretrained_model(
         model_path,  # pyre-fixme
-        None,
+        model_base,
         model_name,
         device_map=None,
     )
@@ -168,20 +170,21 @@ def train(args) -> None:
     dataset = EvalDataset(
         data_path=args.data_path,
     )
-    world_size = 1
-    world_rank = 0
+    world_size = torch.distributed.get_world_size()
+    world_rank = torch.distributed.get_rank()
     shard_dataset = IterableDatasetShard(
         dataset,
         batch_size=1,
         num_processes=world_size,
         process_index=world_rank,
     )
-    # torch.distributed.barrier()
+    torch.distributed.barrier()
     output = []
     final_output = [None] * world_size
     count = 0
-    try:
-        for line in tqdm(shard_dataset):
+    
+    for line in tqdm(shard_dataset):
+        try:
             count += 1
             # if count <= 601:
             #     continue
@@ -297,6 +300,7 @@ def train(args) -> None:
                         max_new_tokens=5,  
                         use_cache=True,
                         stopping_criteria=[stopping_criteria],
+                        prompt=instruct
                     )
                 if isinstance(output_ids, tuple):
                     output_ids = output_ids[0]
@@ -335,22 +339,21 @@ def train(args) -> None:
                         "duration": line["duration"],
                     }
                 )
-    except Exception as e:
-        print("Error:", e)
-        save_time = time.strftime("%Y-%m-%d-%H:%M:%S", time.localtime())
-        with open(
-            os.path.join("./results/VideoMME", f"checkpoint-{save_time}.json"),
-            "w",
-        ) as f:
-            json.dump(output, f)
+        except Exception as e:
+            print("Error:", e)
+            # save_time = time.strftime("%Y-%m-%d-%H:%M:%S", time.localtime())
+            # with open(
+            #     os.path.join("./results/VideoMME", f"checkpoint-{save_time}.json"),
+            #     "w",
+            # ) as f:
+            #     json.dump(output, f)
 
-    # dist.barrier()
-    # dist.all_gather_object(
-    #     final_output,
-    #     output,
-    # )
-    # all_output = list(chain(*final_output))
-    all_output = output
+    dist.barrier()
+    dist.all_gather_object(
+        final_output,
+        output,
+    )
+    all_output = list(chain(*final_output))
     global_rank = 0
     if global_rank == 0:
         if not os.path.exists("./results/VideoMME"):
@@ -392,6 +395,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--model_path', default="./checkpoints/tdc_qwen")
+    parser.add_argument('--model_base', default=None)
     parser.add_argument('--model_name', default="cambrian_qwen")
     parser.add_argument('--version', default="qwen")
     parser.add_argument('--data_path', required=True)
