@@ -423,7 +423,9 @@ def train(args) -> None:
         print("Task ccuracy", task_acc)
 
         task_acc["avg"] = acc
-
+        
+        task_acc["model_path"] = model_path
+        task_acc["model_base"] = model_base
         with open(os.path.join("./results/MVBench", f"result-{save_time}.json"), "w") as f:
             json.dump(task_acc, f)
 

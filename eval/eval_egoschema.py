@@ -57,7 +57,7 @@ class EvalDataset(torch.utils.data.IterableDataset):
         # pyre-fixme[4]: Attribute must be annotated.
         self.data = json.load(open(
                         os.path.join(
-                        data_path, "questions.json"
+                        args.data_path, "questions.json"
                     ), "r"))
 
     def __len__(self) -> int:
@@ -193,7 +193,7 @@ def train(args) -> None:
                 image_sizes=image_sizes,
                 do_sample=False,
                 temperature=0.0,
-                max_new_tokens=5,  
+                max_new_tokens=10,
                 use_cache=True,
                 stopping_criteria=[stopping_criteria],
                 prompt=t_prompt
@@ -273,7 +273,9 @@ def train(args) -> None:
 
         print(f"Accuracy: {correct / total}")
         result = {"acc": correct / total}
-            
+        
+        result["model_path"] = model_path
+        result["model_base"] = model_base
         with open(os.path.join("./results/EgoSchema", f"result-{save_time}.json"), "w") as f:
             json.dump(result, f)
 
@@ -288,7 +290,7 @@ def train(args) -> None:
                 submission.append(item)
         df = pd.DataFrame(submission)
         df.to_csv(
-            "./results/EgoSchema/submission.csv",
+            f"./results/EgoSchema/submission-{save_time}.csv",
             index=False,
             columns=["q_uid", "answer"],
         )

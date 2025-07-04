@@ -256,7 +256,10 @@ def train(args) -> None:
                 instruct += (
                     "Respond with only the letter (A, B, C, or D) of the correct option.\n"
                 )
-                qs = subtitles + instruct
+                if args.use_subtitle:
+                    qs = subtitles + instruct
+                else:
+                    qs = instruct
 
                 if getattr(model.config, "mm_use_im_start_end", False):
                     qs = (
@@ -362,7 +365,7 @@ def train(args) -> None:
         save_time = time.strftime("%Y-%m-%d-%H:%M:%S", time.localtime())
 
         with open(
-            os.path.join("./results/VideoMME", f"outputs{save_time}.json"),
+            os.path.join("./results/VideoMME", f"outputs-{save_time}.json"),
             "w",
         ) as f:
             json.dump(all_output, f)
@@ -386,9 +389,14 @@ def train(args) -> None:
                 if duration_all[duration] > 0
                 else 0
             )
-
+        result["model_path"] = model_path
+        result["model_base"] = model_base
         print(f"Accuracy: {result}", flush=True)
-
+        with open(
+            os.path.join("./results/VideoMME", f"result-{save_time}.json"),
+            "w",
+        ) as f:
+            json.dump(result, f)
 
 
 if __name__ == "__main__":
@@ -399,6 +407,8 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', default="cambrian_qwen")
     parser.add_argument('--version', default="qwen")
     parser.add_argument('--data_path', required=True)
+    parser.add_argument('--use_subtitle', action='store_true')
+    
     args = parser.parse_args()
 
     args.local_rank = int(os.environ["LOCAL_RANK"])

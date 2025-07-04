@@ -240,10 +240,15 @@ def train(args) -> None:
                     "metadata": {},
                 }
             )
+            print(qs)
+            print(pred)
             
         except Exception as e:
             print(e)
         
+        # if len(output) >= 500:
+        #     break
+
     dist.barrier()
     dist.all_gather_object(
         final_output,

@@ -313,6 +313,8 @@ def train(args) -> None:
         final_res["Acc"] = total / idx
         print(final_res, flush=True)
         
+        acc_dict["model_path"] = model_path
+        acc_dict["model_base"] = model_base
         with open(os.path.join("./results/MLVU", f"result-{save_time}.json"), "w") as f:
             json.dump(acc_dict, f, indent=4)
 

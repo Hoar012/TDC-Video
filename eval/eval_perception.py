@@ -257,7 +257,7 @@ def train(args) -> None:
                 correct += 1
 
         print(f"Accuracy: {correct / total}")
-        result = {"acc": correct / total, "model_path": model_path, "model_name": model_name}
+        result = {"acc": correct / total, "model_path": model_path, "model_base": model_base}
             
         with open(os.path.join("./results/PerceptionTest", f"result-{save_time}.json"), "w") as f:
             json.dump(result, f)
