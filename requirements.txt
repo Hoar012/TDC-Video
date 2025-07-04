@@ -180,3 +180,4 @@ webvtt-py==0.5.1
 Werkzeug==3.1.3
 yarl==1.18.3
 yt-dlp==2025.1.12
+pysubs2==1.8.0
