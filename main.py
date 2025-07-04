@@ -19,7 +19,7 @@ tokenizer, model, image_processor, context_len = load_pretrained_model(
 
 model.eval()
 video_path = "./examples/video1.mp4"
-qs = "Describe this video in detail"
+instruction = qs = "Describe this video in detail"
 
 vr = VideoReader(video_path, ctx=cpu(0), num_threads=1)
 fps = float(vr.get_avg_fps())
@@ -54,6 +54,7 @@ with torch.inference_mode():
         max_new_tokens=128,
         use_cache=True,
         stopping_criteria=[stopping_criteria],
+        prompt=instruction
     )
 pred = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 print(pred)
