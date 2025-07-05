@@ -344,12 +344,6 @@ def train(args) -> None:
                 )
         except Exception as e:
             print("Error:", e)
-            # save_time = time.strftime("%Y-%m-%d-%H:%M:%S", time.localtime())
-            # with open(
-            #     os.path.join("./results/VideoMME", f"checkpoint-{save_time}.json"),
-            #     "w",
-            # ) as f:
-            #     json.dump(output, f)
 
     dist.barrier()
     dist.all_gather_object(
@@ -357,7 +351,7 @@ def train(args) -> None:
         output,
     )
     all_output = list(chain(*final_output))
-    global_rank = 0
+    global_rank = dist.get_rank()
     if global_rank == 0:
         if not os.path.exists("./results/VideoMME"):
             os.mkdir("./results/VideoMME")
