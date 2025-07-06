@@ -132,7 +132,7 @@ def train(args) -> None:
     model_base = args.model_base
     model_path = args.model_path
 
-    # torch.distributed.barrier()
+    torch.distributed.barrier()
     tokenizer, model, image_processor, context_len = load_pretrained_model(
         model_path,  # pyre-fixme
         model_base,
