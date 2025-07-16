@@ -112,13 +112,6 @@ class Processor(object):
                     start_time=audio['start_time'],
                     end_time=audio['end_time'],
                 ))
-        
-        # process prompt
-        # prompt = data["text"]["prompt"]
-        # assert prompt.count("<audio>") == len(audios), "{} != {}, wrong audios numbers".format(prompt.count("<audio>"), len(audios))
-        # mm_types_matches = re.compile(r'<image>|<audio>').findall(prompt)
-        # mm_types = [1 if match == '<image>' else 2 if match == '<audio>' else 0 for match in mm_types_matches]
-        # prompt = prompt.replace("<audio>", "<image>")
 
         inputs = dict()
         inputs.update(self.audio_processor.batch_collate(audios))

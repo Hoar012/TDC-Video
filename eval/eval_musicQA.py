@@ -272,7 +272,7 @@ def train(args) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--model_path', default="./checkpoints/tdc_qwen")
+    parser.add_argument('--model_path', default="./checkpoints/TDC-Qwen2-7B")
     parser.add_argument('--model_base', default=None)
     parser.add_argument('--model_name', default="cambrian_qwen")
     parser.add_argument('--version', default="qwen")

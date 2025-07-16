@@ -905,8 +905,7 @@ class CambrianMetaForCausalLM(ABC):
                     split_sizes_ori.append(1)
                 else: 
                     max_num_frames = self.get_max_num_frames(input_ids[i])
-                    # max_num_frames = min(max_num_frames, 224) # in case of OOM
-                    max_num_frames = min(max_num_frames, 400) # in case of OOM
+                    max_num_frames = min(max_num_frames, 224) # in case of OOM
                     
                     if image.shape[0] > max_num_frames:
                         interval = len(image) / float(max_num_frames)
@@ -925,9 +924,6 @@ class CambrianMetaForCausalLM(ABC):
                             sample_indices = torch.zeros(image.shape[0], dtype=torch.int16)
                             sample_indices[indices] = 1
                     else:
-                        # from IPython import embed
-                        # embed()
-                        # exit()
                         if video_indices is not None:
                             sample_indices = video_indices[i]
                         else:
@@ -935,10 +931,7 @@ class CambrianMetaForCausalLM(ABC):
                         select_image_aux_list[0].append(image_aux_list[0][i])
                         select_image_aux_list[1].append(image_aux_list[1][i])
                         split_sizes_ori.append(image.shape[0])
-                    
-                    # print("Length:", len(sample_indices))
-                    # print("sample_indices:", sample_indices)
-                    
+
                     frame_indices.append(sample_indices)
 
             image_aux_list = select_image_aux_list
@@ -1323,7 +1316,6 @@ class CambrianMetaForCausalLM(ABC):
         split_image_features_unpadded = None
         frame_split_sizes = None
         
-        # 处理视频feature并添加frame pos embed
         if split_sizes is not None:
             split_image_features = []
             split_image_features_unpadded = (
@@ -1499,7 +1491,7 @@ class CambrianMetaForCausalLM(ABC):
             cur_input_embeds = self.get_model().embed_tokens(
                 torch.cat(cur_input_ids_noim)
             )
-            # print(torch.cat(cur_input_ids_noim))
+
             cur_input_embeds_no_im = torch.split(cur_input_embeds, split_sizes, dim=0)
             cur_new_input_embeds = []
             cur_new_labels = []
@@ -1534,11 +1526,9 @@ class CambrianMetaForCausalLM(ABC):
                 )
                 text_indice = cur_input_ids_noim[-1] != 0
                 text_emb = cur_input_embeds_no_im[-1][text_indice]
-                # print(text_emb.shape)
                 
                 # get the text_input_ids for qformer
                 prompt = prompts[batch_idx]
-                # print(prompt)
                 input_token = self.get_model().bert_tokenizer(
                     prompt, 
                     padding='longest', 
@@ -1551,7 +1541,6 @@ class CambrianMetaForCausalLM(ABC):
                 seg_indices = segment_frame_indices_all[cur_image_idx] + 1
                 split_points = [0] + seg_indices.tolist() + [len(visual_emb_frame)]
 
-                # 计算每个分段的大小
                 segment_sizes = [split_points[i+1] - split_points[i] for i in range(len(split_points)-1)]
                 segments = torch.split(visual_emb_frame, segment_sizes)
                 
@@ -1559,7 +1548,7 @@ class CambrianMetaForCausalLM(ABC):
                     audio_embeds = []
                     audio_sample_rate = 16000
                     dist = 10
-                    seg_audio_embeds = []  # 用于存储 1 和它后面的 0 片段
+                    seg_audio_embeds = []
                     for k in range(0, int(cur_audio["audio_wav"].shape[1] / audio_sample_rate), dist):
                         wav_start_idx = audio_sample_rate * k
                         wav_end_idx = int(audio_sample_rate * (k + dist))
@@ -1570,7 +1559,7 @@ class CambrianMetaForCausalLM(ABC):
                             feature_only=True
                         )
                         
-                        sample_len = len(sample_indices[k: k + dist])  # 当前片段长度
+                        sample_len = len(sample_indices[k: k + dist])
                         for idx, indice in enumerate(sample_indices[k: k + dist]):
                             token = audio_embed[:, idx * 50:(idx + 1) * 50, :]
                             if token.shape[1] == 0:
@@ -1580,16 +1569,13 @@ class CambrianMetaForCausalLM(ABC):
 
                             if indice == 1:
                                 if seg_audio_embeds:  
-                                    # 说明上一个 1 后面有 0，现在遇到了新的 1，先 pool 并存入
-                                    pooled_embed = torch.cat(seg_audio_embeds, dim=1)  # 在时间维拼接
+                                    pooled_embed = torch.cat(seg_audio_embeds, dim=1)
                                     pooled_embed = torch.nn.functional.adaptive_avg_pool2d(pooled_embed, (50, 768))
                                     audio_embeds.append(pooled_embed.to(self.model.dtype))
                                     seg_audio_embeds = []
                                     
-                                # 存入当前的 1
                                 seg_audio_embeds.append(token)
 
-                                # 如果下一个是 1，则直接存入
                                 if idx + 1 < sample_len and sample_indices[k + idx + 1] == 1:
                                     audio_embeds.append(token.to(self.model.dtype))
                                     seg_audio_embeds = []
@@ -1675,19 +1661,6 @@ class CambrianMetaForCausalLM(ABC):
                             return_dict=True,
                         )
                         
-                        # InstructBLIP
-                        # visual_input = self.model.qformer_proj(visual_input)
-                        # query_output = getattr(
-                        #     self.get_model(), "Qformer"
-                        # )(
-                        #     input_ids=qformer_ids,
-                        #     query_embeds=query_tokens,
-                        #     encoder_hidden_states=visual_input,
-                        #     encoder_attention_mask=image_atts,
-                        #     use_cache=False,
-                        #     return_dict=True,
-                        # )
-                        
                         compressed_visual_emb = F.normalize(
                             self.get_model().vision_proj(query_output.last_hidden_state[:,:query_tokens.shape[1]]), 
                             dim=-1
@@ -1719,10 +1692,6 @@ class CambrianMetaForCausalLM(ABC):
                         new_visual_emb_frames.append(new_visual_emb_frame)
 
                 reduced_visual_len = sum([x.shape[0] for x in new_visual_emb_frames])
-                
-                # print("video_len:", visual_len)
-                # print("reduced_video_len:", reduced_visual_len)
-                # print("max_visual_len:", max_visual_len)
 
                 if reduced_visual_len > max_visual_len:
                     force_remove = math.ceil(

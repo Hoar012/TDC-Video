@@ -140,14 +140,6 @@ def load_pretrained_model(
                     for k, v in non_lora_trainables.items()
                 }
             model.load_state_dict(non_lora_trainables, strict=False)
-            # lora_weights = torch.load("/lamda12/haohr/tdc/checkpoints/mm_cambrian_qwen_video_audio_3-3/checkpoint-1892/adapter_model.bin")
-            # for key in lora_weights:
-            #     if "pos_embed" in key:
-            #         print(key)
-                    
-            # for key in non_lora_trainables:
-            #     if "pos_embed" in key:
-            #         print(key)
                 
             from peft import PeftModel
 

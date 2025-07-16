@@ -602,7 +602,6 @@ class LazySupervisedDataset(Dataset):
                     print("Not exist: ", video_file, flush=True)
                     return self.__getitem__(0)
             
-            # if not has_audio:
             image, sample_indices = uniform_sample(image, num_sample=224)
             # pyre-fixme[3]: Return type must be annotated.
             # pyre-fixme[2]: Parameter must be annotated.
@@ -1144,16 +1143,7 @@ def train() -> None:
         )
         if model_args.tune_mm_mlp_adapter:
             model.requires_grad_(False)
-            # for p in model.get_model().mm_projector.parameters():
-            #     p.requires_grad = True
-            # tune_modules = [
-            #     "query_tokens",
-            #     "Qformer",
-            #     "vision_proj",
-            #     "text_proj",
-            #     "qformer_proj",
-            #     "frame_seg"
-            # ]
+
             tune_modules = [
                 "mm_projector",
                 "pos_emb",
@@ -1196,14 +1186,9 @@ def train() -> None:
         model.initialize_vision_tokenizer(model_args, tokenizer=tokenizer)
 
     # initialize compression modules    
-    # from IPython import embed
-    # embed()
     unfreeze_mm_compressor = model_args.unfreeze_mm_compressor
     if model_args.pretrained_qformer:
         model.get_model().initialize_compressor(model.config, model_args.pretrained_qformer, model_args.context_token_num)
-    
-    # for p in model.model.Qformer.cls.parameters():
-    #     p.requires_grad = False
                 
     audio_input = model_args.audio_input
     if audio_input:
@@ -1227,10 +1212,6 @@ def train() -> None:
     )
     print(f"Totol params: {total_params / 1024 / 1024}M")
     print(f"Trainable params: {trainable_params / 1024 / 1024}M")
-    
-    # for name, param in model.named_parameters():
-    #     if param.requires_grad:
-    #         print(name)
 
     if training_args.bf16:
         model.to(torch.bfloat16)

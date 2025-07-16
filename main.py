@@ -12,14 +12,18 @@ from tdc.mm_datautils import (
     tokenizer_image_token,
 )
 from decord import cpu, VideoReader
+from utils.processor import Processor
 
 tokenizer, model, image_processor, context_len = load_pretrained_model(
-    "./checkpoints/tdc_Llama3_2_3B", None, "cambrian_llama",
+    "checkpoints/TDC-Qwen2-7B", None, "cambrian_qwen",
 )
+audio_processor = Processor("checkpoints/audio_encoder/whisper-large-v3")
 
 model.eval()
+model.cuda()
 video_path = "./examples/video1.mp4"
-instruction = qs = "Describe this video in detail"
+audio_path = "./examples/audio1.wav"
+instruction = qs = "Describe this video in detail, what can you see and hear?"
 
 vr = VideoReader(video_path, ctx=cpu(0), num_threads=1)
 fps = float(vr.get_avg_fps())
@@ -33,8 +37,16 @@ image_sizes = [video[0].shape[:2]]
 video = process_images(video, image_processor, model.config)
 video = [item.unsqueeze(0) for item in video]
 
+if audio_path is not None:
+    audio_data = {
+        "audio": [{'audio_file': audio_path, 'start_time': None, 'end_time': None}]
+                }
+    audio = audio_processor(audio_data)
+else:
+    audio = None
+    
 qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
-conv = conv_templates["llama3"].copy()
+conv = conv_templates["qwen"].copy()
 conv.append_message(conv.roles[0], qs)
 conv.append_message(conv.roles[1], None)
 prompt = conv.get_prompt()
@@ -49,12 +61,13 @@ with torch.inference_mode():
         input_ids,
         images=video,
         image_sizes=image_sizes,
-        do_sample=False,
+        do_sample=True,
         temperature=0.2,
         max_new_tokens=128,
         use_cache=True,
         stopping_criteria=[stopping_criteria],
-        prompt=instruction
+        prompt=instruction,
+        audio=audio
     )
 pred = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 print(pred)
