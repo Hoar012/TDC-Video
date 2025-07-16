@@ -37,6 +37,7 @@ from tdc.mm_datautils import (
     process_images,
     tokenizer_image_token,
 )
+from cot import LVCoT
 
 from decord import cpu, VideoReader  # @manual=fbsource//third-party/pypi/decord:decord
 from torch import distributed as dist
@@ -139,10 +140,9 @@ def train(args) -> None:
         model_name,
         device_map=None,
     )
-    model.get_model().config.dino_threshold = 0.82
     model.get_model().config.drop_threshold = 0.77
     model.config.use_cache = True
-    model.cuda()
+    # model.cuda()
     dataset = EvalDataset(
         data_path=args.data_path,
     )
@@ -170,22 +170,29 @@ def train(args) -> None:
             fps = round(vr.get_avg_fps())
             frame_idx = [
                     i
-                    for i in range(0, len(vr), round(fps / 0.5))
+                    for i in range(0, len(vr), round(fps / 1))
                 ]
             if len(frame_idx) > 1000:
                 frame_idx = [
                     frame_idx[i]
                     for i in range(0, len(frame_idx), len(frame_idx) // 1000)
                 ]
+            video_length = len(frame_idx)
             video = vr.get_batch(frame_idx).asnumpy()
             image_sizes = [video[0].shape[:2]]
             video = process_images(video, image_processor, model.config)
             video = [item.unsqueeze(0) for item in video]
         else:
-            video = np.zeros((1, 1024, 1024, 3)).astype(np.uint8)
-            image_sizes = [(1024, 1024)]
-            video = process_images(video, image_processor, model.config)
-
+            print("video not exist:", video_path)
+            continue
+            
+        if args.use_lvcot:
+            if video_length >= 600:
+                cot_output = LVCoT(model, video, image_sizes, tokenizer, version, qs, max_forward=2)
+                cot_prompt = " ".join(cot_output)
+                t_prompt = qs = f"<think>{cot_prompt}</think>" + line["prompt"]
+                print(qs)
+            
         if getattr(model.config, "mm_use_im_start_end", False):
             qs = (
                 DEFAULT_IM_START_TOKEN
@@ -243,8 +250,10 @@ def train(args) -> None:
 
         pred_answer = re.findall("[\(\ \[]*([A-D])[\)\.\ \]]*", pred)
 
-        pred_answer = pred_answer[0].strip()
-        pred_answer = pred_answer.strip("()")
+        try:
+            pred_answer = pred_answer[0].strip().strip("()")
+        except:
+            pred_answer = "A"
         if pred_answer in letters:
             pred_idx = letters.index(pred_answer)
             pred = letters[pred_idx]
@@ -327,6 +336,7 @@ if __name__ == "__main__":
     parser.add_argument('--version', default="qwen")
     parser.add_argument('--local-rank', default=0)
     parser.add_argument('--data_path', required=True)
+    parser.add_argument('--use_lvcot', action='store_true')
     args = parser.parse_args()
         
     args.local_rank = int(os.environ["LOCAL_RANK"])

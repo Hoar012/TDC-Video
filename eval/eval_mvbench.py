@@ -42,7 +42,6 @@ from torch import distributed as dist
 from tqdm import tqdm
 
 from transformers.trainer_pt_utils import IterableDatasetShard
-from eval.cot import LongCoT
 
 tasks = {
     "Action Sequence": (
@@ -195,7 +194,7 @@ def train(args) -> None:
     )
     model.get_model().config.drop_threshold = 0.8
     model.config.use_cache = True
-    model.cuda()
+    # model.cuda()
     dataset = EvalDataset(
         data_path=args.data_path,
     )
@@ -236,7 +235,6 @@ def train(args) -> None:
                             for i in range(
                                 start_idx,
                                 end_idx,
-                                # round(fps / 2),
                                 round(fps / 1),
                             )
                         ]
@@ -248,7 +246,6 @@ def train(args) -> None:
                             for i in range(
                                 0,
                                 len(vr),
-                                # round(fps / 2),
                                 round(fps / 1),
                             )
                         ]
@@ -273,7 +270,6 @@ def train(args) -> None:
                     for i in range(
                         start_idx,
                         end_idx,
-                        # round(fps / 2),
                         round(fps / 1),
                     )
                 ]
@@ -291,16 +287,6 @@ def train(args) -> None:
             video = np.zeros((1, 1024, 1024, 3)).astype(np.uint8)
             image_sizes = [(1024, 1024)]
             video = process_images(video, image_processor, model.config)
-
-        if args.use_lvcot and len(video) > 30:
-            cot_outputs = LongCoT(model, video, image_sizes, tokenizer, "qwen", qs, max_forward = 2)
-            cot_prompt = " ".join(cot_outputs)
-        else:
-            cot_prompt = f"This is a video clip from 0s to {len(video)}s. "
-            cot_prompt = f""
-            
-        
-        qs = cot_prompt + qs
         
         if getattr(model.config, "mm_use_im_start_end", False):
             qs = (

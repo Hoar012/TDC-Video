@@ -37,6 +37,7 @@ from tdc.mm_datautils import (
     process_images,
     tokenizer_image_token,
 )
+from cot import LVCoT
 
 from decord import cpu, VideoReader  # @manual=fbsource//third-party/pypi/decord:decord
 from pyarrow import parquet as pq
@@ -186,8 +187,6 @@ def train(args) -> None:
     for line in tqdm(shard_dataset):
         try:
             count += 1
-            # if count <= 601:
-            #     continue
             video_name = line["video_name"]
             video_path = line["video"]
             subtitle_path = line["subtitle"]
@@ -199,18 +198,14 @@ def train(args) -> None:
                 sample_fps = 1
                 frame_idx = [i for i in range(0, len(vr), round(fps / sample_fps))]
                 video = vr.get_batch(frame_idx).asnumpy()
+                video_length = len(frame_idx)
                 
                 image_sizes = [video[0].shape[:2]]
                 video = process_images(video, image_processor, model.config)
                 video = [item.unsqueeze(0) for item in video]
             else:
-                frame_idx = [1]
-                fps = 1
                 print(f"video_path {video_path} does not exist")
-
-                video = np.zeros((1, 1024, 1024, 3)).astype(np.uint8)
-                image_sizes = [(1024, 1024)]
-                video = process_images(video, image_processor, model.config)
+                continue
 
             if (
                 os.path.exists(video_path)
@@ -245,6 +240,14 @@ def train(args) -> None:
                 subtitles = f"This video's subtitles are listed below:\n{subtitles}\n"
             else:
                 subtitles = ""
+                
+            if args.use_lvcot:
+                if video_length >= 900:
+                    cot_output = LVCoT(model, video, image_sizes, tokenizer, version, None, max_forward=3)
+                    cot_prompt = " ".join(cot_output)
+                elif video_length >= 600:
+                    cot_output = LVCoT(model, video, image_sizes, tokenizer, version, None, max_forward=2)
+                    cot_prompt = " ".join(cot_output)
 
             for question in questions:
                 q = question["question"]
@@ -260,6 +263,10 @@ def train(args) -> None:
                     qs = subtitles + instruct
                 else:
                     qs = instruct
+                    
+                if args.use_lvcot:
+                    if video_length >= 600:
+                        qs = f"<think>{cot_prompt}</think>" + qs
 
                 if getattr(model.config, "mm_use_im_start_end", False):
                     qs = (
@@ -402,7 +409,7 @@ if __name__ == "__main__":
     parser.add_argument('--version', default="qwen")
     parser.add_argument('--data_path', required=True)
     parser.add_argument('--use_subtitle', action='store_true')
-    
+    parser.add_argument('--use_lvcot', action='store_true')
     args = parser.parse_args()
 
     args.local_rank = int(os.environ["LOCAL_RANK"])

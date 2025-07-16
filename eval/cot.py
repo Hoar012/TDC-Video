@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-from tdc.builder import load_pretrained_model
 from tdc.constants import (
     DEFAULT_IMAGE_TOKEN,
     IMAGE_TOKEN_INDEX,

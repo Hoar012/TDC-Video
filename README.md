@@ -99,7 +99,17 @@ sh scripts/stage2/train_video_qwen.sh
 sh scripts/stage3/train_video_audio_qwen_lora.sh
 ```
 
+### Evaluation
 
+#### Evaluation on General Video Understanding
+```bash
+torchrun --nproc_per_node=8 ./eval/eval_mlvu.py --model_path Hoar012/TDC-Qwen2-7B --model_name cambrian_qwen --version qwen --data_path eval/MLVU
+```
+
+#### Evaluation on Audio-Visual Comprehension
+```bash
+torchrun --nproc_per_node=8 ./eval/eval_musicQA.py --model_path Hoar012/TDC-Qwen2-7B --model_name cambrian_qwen --version qwen --data_path data/AV_data/Music-AVQA --test_file data/AV_data/Music-AVQA/avqa-test.json
+```
 
 ## BibTeX
 ```

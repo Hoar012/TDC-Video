@@ -74,7 +74,6 @@ import ast
 import re
 
 def process(line):
-    # 给定的字符串形式的列表
     str_list = "[\"Audio\", \"Counting\"]"
     question = line["question_content"]
     matches = re.findall(r'<(.*?)>', question)
@@ -103,7 +102,7 @@ def train(args) -> None:
     )
     model.get_model().config.drop_threshold = 0.8
     model.config.use_cache = True
-    model.cuda()
+    # model.cuda()
     model.to(torch.float16)
     audio_processor = Processor("./checkpoints/audio_encoder/whisper-large-v3")
     
@@ -245,9 +244,6 @@ def train(args) -> None:
             
         except Exception as e:
             print(e)
-        
-        # if len(output) >= 500:
-        #     break
 
     dist.barrier()
     dist.all_gather_object(

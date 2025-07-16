@@ -148,6 +148,7 @@ def train(args) -> None:
             video = process_images(video, image_processor, model.config)
             video = [item.unsqueeze(0) for item in video]
         else:
+            print(f"Video {video_path} does not exist.")
             video = np.zeros((1, 1024, 1024, 3)).astype(np.uint8)
             image_sizes = [(1024, 1024)]
             video = process_images(video, image_processor, model.config)
