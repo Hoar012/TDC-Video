@@ -19,12 +19,9 @@
 - [Demo](#demo)
 - [Training](#training)
 - [Evaluation](#evaluation)
-<!-- - [Models](#models)
-- [Demo](#demo)
-- [Data](#data)
-- [Evaluation](#evaluation) -->
 
-Note: 🚧 This repository is under construction 🚧 -- Please check back for updates!
+
+<!-- Note: 🚧 This repository is under construction 🚧 -- Please check back for updates! -->
 
 ## Framework of Temporal Dynamic Context Compression
 | ![TDC](./images/framework.png) |
