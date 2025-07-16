@@ -1,6 +1,6 @@
 ## Multimodal Long Video Modeling Based on Temporal Dynamic Context
 
-### [Paper](https://arxiv.org/abs/2504.10443) | [Project Page](https://hoar012.github.io/TDC-Project/) | [Model](Hoar012/TDC-Qwen2-7B)
+### [Paper](https://arxiv.org/abs/2504.10443) | [Project Page](https://hoar012.github.io/TDC-Project/) | [Model](https://huggingface.co/Hoar012/TDC-Qwen2-7B)
 
 
 ## News
