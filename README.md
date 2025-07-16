@@ -1,9 +1,10 @@
 ## Multimodal Long Video Modeling Based on Temporal Dynamic Context
 
-### [Paper](https://arxiv.org/abs/2504.10443) | [Project Page](https://hoar012.github.io/TDC-Project/) | [Model (Coming Soon)](https://github.com/Hoar012/TDC-Video)
+### [Paper](https://arxiv.org/abs/2504.10443) | [Project Page](https://hoar012.github.io/TDC-Project/) | [Model](Hoar012/TDC-Qwen2-7B)
 
 
 ## News
+- **2025.7.16** Release model weights and inference code. Have a try!
 - **2025.6.10** Release training and evaluation code.
 
 <!-- ## Unified Multimodal Long Video Understanding
@@ -14,7 +15,10 @@
 ## 📋 Contents
 
 - [Install](#install)
-- [Training](#Training)
+- [Models](#models)
+- [Demo](#demo)
+- [Training](#training)
+- [Evaluation](#evaluation)
 <!-- - [Models](#models)
 - [Demo](#demo)
 - [Data](#data)
@@ -42,6 +46,18 @@ cd TDC-Video
 conda create -n tdc python=3.10 -y
 conda activate tdc
 pip install -r requirements.txt
+pip install flash-attn --no-build-isolation
+```
+
+### Models
+Pretrained model weights are available on Hugging Face.
+
+TDC-Qwen2-7B: [TDC-Qwen2-7B](https://huggingface.co/Hoar012/TDC-Qwen2-7B); TDC-Llama3_2-3B: [TDC-Llama3_2-3B](https://huggingface.co/Hoar012/TDC-Llama3_2-3B)
+
+### Demo
+
+```bash
+python main.py
 ```
 
 ### Training
