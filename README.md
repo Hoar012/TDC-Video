@@ -75,7 +75,7 @@ Modify the PATH_TO_JSON and PATH_TO_FOLDER arguments in the training scripts to 
 PATH_TO_JSON=""
 PATH_TO_FOLDER=""
 ```
-Training your own model
+Train your own model
 + Stage 1: Image-Text Alignment
 ```
 sh scripts/stage1/train_image_qwen.sh
@@ -105,8 +105,10 @@ torchrun --nproc_per_node=8 ./eval/eval_mlvu.py --model_path Hoar012/TDC-Qwen2-7
 
 #### Evaluation on Audio-Visual Comprehension
 ```bash
-torchrun --nproc_per_node=8 ./eval/eval_musicQA.py --model_path Hoar012/TDC-Qwen2-7B --model_name cambrian_qwen --version qwen --data_path data/AV_data/Music-AVQA --test_file data/AV_data/Music-AVQA/avqa-test.json
+torchrun --nproc_per_node=8 ./eval/eval_musicQA.py --model_path Hoar012/TDC-Qwen2-7B --model_name cambrian_qwen --version qwen --data_path eval/Music-AVQA --test_file eval/Music-AVQA/avqa-test.json
 ```
+
+For more detailed instructions on evaluation, please refer to the [evaluation guide](https://github.com/Hoar012/TDC-Video/blob/main/eval/README.md).
 
 ## BibTeX
 ```
