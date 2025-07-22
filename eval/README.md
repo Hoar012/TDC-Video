@@ -10,7 +10,7 @@ torchrun --nproc_per_node=8 ./eval/eval_mvbench.py --model_path Hoar012/TDC-Qwen
 
 ## PerceptionTest
 
-Download the valid split of [PerceptionTest](https://github.com/google-deepmind/perception_test) to `./eval/PerceptionTest`
+Download the *validation split* of [PerceptionTest](https://github.com/google-deepmind/perception_test) and place it in `./eval/PerceptionTest`
 
 ```bash
 torchrun --nproc_per_node=8 ./eval/eval_perception.py --model_path Hoar012/TDC-Qwen2-7B --model_name cambrian_qwen --version qwen --data_path eval/PerceptionTest
@@ -24,18 +24,18 @@ Download [EgoSchema](https://github.com/egoschema/EgoSchema) to `./eval/EgoSchem
 torchrun --nproc_per_node=8 ./eval/eval_egoschema.py --model_path Hoar012/TDC-Qwen2-7B --model_name cambrian_qwen --version qwen --data_path eval/EgoSchema
 ```
 
-Then submit the result file `.csv` to [Kaggle](https://www.kaggle.com/competitions/egoschema-public/submissions)
+Then submit the resulting `.csv` file to [Kaggle](https://www.kaggle.com/competitions/egoschema-public/submissions).
 
 
 ## MLVU
 
-Download [MVLU](https://huggingface.co/datasets/MLVU/MVLU) to `./eval/MLVU`
+Download [MLVU](https://huggingface.co/datasets/MLVU/MVLU) to `./eval/MLVU`
 
 ```bash
 torchrun --nproc_per_node=8 ./eval/eval_mlvu.py --model_path Hoar012/TDC-Qwen2-7B --model_name cambrian_qwen --version qwen --data_path eval/MLVU
 ```
 
-Set the --use_lvcot flag to enable evaluation with LVCoT
+Set the `--use_lvcot` flag to enable evaluation with LVCoT.
 
 ```bash
 torchrun --nproc_per_node=8 ./eval/eval_mlvu.py --model_path Hoar012/TDC-Qwen2-7B --model_name cambrian_qwen --version qwen --data_path eval/MLVU --use_lvcot
@@ -67,5 +67,5 @@ Download the processed videos and audios from [AVSD](https://huggingface.co/data
 
 
 ```bash
-torchrun --nproc_per_node=8 ./eval/eval_avsd.py --model_path Hoar012/TDC-Qwen2-7B --model_name cambrian_qwen --version qwen --data_path eval/AVSD --test_file eval/AVSD/avsd_val.jsonavqa-test.json
+torchrun --nproc_per_node=8 ./eval/eval_avsd.py --model_path Hoar012/TDC-Qwen2-7B --model_name cambrian_qwen --version qwen --data_path eval/AVSD --test_file eval/AVSD/avsd_val.json
 ```
